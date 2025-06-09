@@ -4,6 +4,7 @@ from typing import Optional, List
 from uuid import UUID,uuid4
 from datetime import datetime
 
+
 # Organizations Table
 class Organization(SQLModel, table=True):
     __tablename__ = "organizations"
@@ -11,7 +12,8 @@ class Organization(SQLModel, table=True):
     name: str = Field(max_length=255)
 
     workflows: List["Workflow"] = Relationship(back_populates="organization")
-   
+
+
 #  Users Table
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -106,6 +108,7 @@ class Document(SQLModel, table=True):
         back_populates="updated_documents",
         sa_relationship_kwargs={"foreign_keys": "[Document.updated_by]"}
     )
+
 
 #  Policy Table
 class Policy(SQLModel, table=True):

@@ -11,7 +11,7 @@ app.include_router(workflows.router, prefix="/organizations/{org_id}/workflows",
 app.include_router(documentTypes.router, prefix="/organizations/{org_id}/workflows/{workflow_id}", tags=["DocumentTypes"])
 app.include_router(documents.router, prefix="/organizations/{org_id}/workflows/{workflow_id}", tags=["Documents"])
 app.include_router(policies.router, prefix="/policies", tags=["Policies"])
-app.include_router(users.router, prefix="/organizations/{org_id}/users", tags=["Users"])
+app.include_router(users.router, prefix="/auth", tags=["Users"])
 
 
 @app.get('/create')
