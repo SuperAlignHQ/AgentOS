@@ -1,0 +1,50 @@
+{
+    "uploadedDocuments": [  
+    {
+      "category": "Identity Proof",
+      "files": [
+        {
+          "fileName": "Passport.pdf",
+          "uploadedOn": "Apr 10, 2025",
+          "fileSize": "2 MB",
+          "status": "4/4"
+        }
+      ]
+    },
+    {
+      "category": "Income Proof",
+      "files": [
+        {
+          "fileName": "Passport.pdf",
+          "uploadedOn": "Apr 10, 2025",
+          "fileSize": "2 MB",
+          "status": "2/4"
+        },
+        {
+          "fileName": "Passport.pdf",
+          "uploadedOn": "Apr 10, 2025",
+          "fileSize": "2 MB",
+          "status": "4/4"
+        },
+        {
+          "fileName": "Passport.pdf",
+          "uploadedOn": "Apr 10, 2025",
+          "fileSize": "2 MB",
+          "status": "1/4"
+        }
+      ]
+    },
+    {
+        "category": "Uncategorized",
+        "files": [
+          {
+            "fileName": "Image.jpg",
+            "uploadedOn": "Apr 10, 2025",
+            "fileSize": "2 MB",
+            "status": "4/4"
+          }
+        ]
+    }
+    ]
+}
+  
