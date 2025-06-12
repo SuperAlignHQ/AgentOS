@@ -2,8 +2,8 @@ from typing import List
 from uuid import UUID,uuid4
 from fastapi import APIRouter, Depends, HTTPException,status
 from sqlmodel import Session, select
-from app.models.models import Organization
-from app.database import get_session
+from models.models import Organization
+from database import get_session
 
 router=APIRouter()
 

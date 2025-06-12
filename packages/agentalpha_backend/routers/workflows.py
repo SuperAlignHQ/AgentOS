@@ -3,8 +3,8 @@ from sqlmodel import select, Session
 from uuid import UUID
 from typing import List
 
-from app.models.models import Workflow
-from app.database import get_session
+from models.models import Workflow
+from database import get_session
 
 router = APIRouter()
 

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from app.database import create_db_and_tables,drop_all_tables
-from app.routers import auth, documentTypes, organizations,workflows,policies,users,documents
+from database import create_db_and_tables,drop_all_tables
+from routers import auth, documentTypes, organizations,workflows,policies,users,documents
 
 app=FastAPI()
 

@@ -4,8 +4,8 @@ from uuid import UUID
 from typing import List
 
 
-from app.models.models import DocumentTypeMaster
-from app.database import get_session
+from models.models import DocumentTypeMaster
+from database import get_session
 
 router=APIRouter()
 

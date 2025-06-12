@@ -2,8 +2,8 @@ from datetime import datetime
 from fastapi import APIRouter,HTTPException,status
 from sqlmodel import select,Session
 from uuid import UUID
-from app.models.models import Document
-from app.database import get_session
+from models.models import Document
+from database import get_session
 from typing import List
 
 router=APIRouter()

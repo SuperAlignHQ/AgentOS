@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, create_engine,Session
-from app.models.models import (
+from models.models import (
     Organization, User, Workflow, Document,
     Policy, DocumentPolicyInference, Audit,
     Role, DocumentTypeMaster
