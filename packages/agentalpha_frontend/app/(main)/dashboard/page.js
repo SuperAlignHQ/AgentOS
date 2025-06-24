@@ -69,7 +69,7 @@ const page = () => {
   }, [isOverlayVisible]);
 
   return (
-    <div className='flex flex-col bg-gray-50 overflow-hidden'>
+    <div className='flex flex-col bg-black/5 overflow-hidden'>
     <div className='flex p-5 border-b  justify-between items-center'>
     <div>
       <Breadcrumb>

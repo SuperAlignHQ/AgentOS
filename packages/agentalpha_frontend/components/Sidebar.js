@@ -67,7 +67,7 @@ const Sidebar = () => {
         <input type="text" placeholder="Search" className='w-full p-2 pl-10 rounded-md border border-gray-300 focus:outline-none' />
     </div>
 
-    <div onClick={() => setIsOpen(!isOpen)} className={`flex mt-4 justify-between hover:bg-gray-100 p-2 rounded-md cursor-pointer ${isOpen ? '' : 'bg-gray-200'}`}>
+    <div onClick={() => setIsOpen(!isOpen)} className={`flex mt-4 justify-between hover:bg-black/5 p-2 rounded-md cursor-pointer ${isOpen ? '' : 'bg-black/15'}`}>
          <div className='flex space-x-2 items-center'>
             {!isOpen ? <SaveAsIcon className='text-black' /> : <SaveAsOutlined className='text-black' />}
         <p className='text-black font-semibold'>Secured Learning</p>
@@ -79,11 +79,11 @@ const Sidebar = () => {
     </div>
     {!isOpen && (
             <div className='mt-4 pl-6 flex flex-col space-y-2'>
-                <div onClick={handleClick} className={`flex space-x-2 items-center  cursor-pointer hover:bg-gray-100 p-2 rounded-md ${isOpen2 ? 'bg-gray-200 text-black' : ''}`}>
+                <div onClick={handleClick} className={`flex space-x-2 items-center  cursor-pointer hover:bg-black/5 p-2 rounded-md ${isOpen2 ? 'bg-black/15 text-black' : ''}`}>
                  {!isOpen2 ? <DashboardOutlined /> : <DashboardIcon />}
                  <div className='text-sm'> Dashboard</div>
                 </div>
-                <div onClick={handleClick2} className={`flex space-x-2 items-center cursor-pointer hover:bg-gray-100 p-2  rounded-md ${isOpen3 ? 'bg-gray-200 text-black' : ''}`}>
+                <div onClick={handleClick2} className={`flex space-x-2 items-center cursor-pointer hover:bg-black/5 p-2  rounded-md ${isOpen3 ? 'bg-black/15 text-black' : ''}`}>
                  {!isOpen3 ? <DescriptionOutlined /> : <DescriptionIcon />}
                   <div className='text-sm'> Applications </div>
                 </div>
@@ -91,7 +91,7 @@ const Sidebar = () => {
         )}
 
       <div onClick={()=>router.push('/policies')}
-       className={`flex space-x-2 mt-2 items-center cursor-pointer hover:bg-gray-100 p-2  rounded-md ${isOpen4 ? 'bg-gray-200 font-semibold' : ''}`}>
+       className={`flex space-x-2 mt-2 items-center cursor-pointer hover:bg-black/5 p-2  rounded-md ${isOpen4 ? 'bg-black/15 font-semibold' : ''}`}>
        {isOpen4 ? <SafetyCheckOutlined /> : <SafetyCheckIcon />}
         <div>Policies</div>
       </div>  
