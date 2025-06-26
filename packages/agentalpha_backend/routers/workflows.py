@@ -4,7 +4,7 @@ from sqlmodel import select, Session
 from uuid import UUID, uuid4
 from typing import List
 
-from models.models import Workflow
+from models.models import Document, Workflow
 from database import get_session
 from schemas.WorkFlowSchema import WorkFlowInput,WorkFlowRead
 
@@ -83,7 +83,15 @@ def delete_workflow(org_id: UUID, workflow_id: UUID, session: Session = Depends(
         raise HTTPException(status_code=400, detail="Workflow does not belong to this organization")
 
     try:
-        session.delete(workflow)
+        documents = session.exec(
+            select(Document).where(Document.workflow_id == workflow_id)
+        ).all()
+        for doc in documents:
+            session.delete(doc)
+
+        # ✅ 2. Soft delete the workflow
+        workflow.deleted_at = datetime.utcnow()
+        session.add(workflow)
         session.commit()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting workflow: {str(e)}")

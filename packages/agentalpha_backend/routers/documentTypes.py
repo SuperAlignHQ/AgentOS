@@ -137,6 +137,7 @@ def delete_document_type(org_id: UUID, workflow_id: UUID, doc_type_id: UUID, ses
     document_type = session.get(DocumentTypeMaster, doc_type_id)
     if not document_type:
         raise HTTPException(status_code=404, detail="Document type not found")
+    
     session.delete(document_type)
     session.commit()
     return {"detail": "Document type deleted"}

@@ -123,7 +123,6 @@ class Workflow(SQLModel, table=True):
 
     organization: Optional["Organization"] = Relationship(back_populates="workflows")
     documents: List["Document"] = Relationship(back_populates="workflow",sa_relationship_kwargs={
-        "cascade": "all, delete-orphan",
         "passive_deletes": True
     })
     creator: Optional["User"] = Relationship(

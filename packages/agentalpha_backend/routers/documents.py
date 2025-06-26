@@ -148,7 +148,8 @@ def delete_document(org_id: UUID, workflow_id: UUID, document_id: UUID,session:S
         if document.workflow_id!=workflow_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Worflow doesnt belong to this organization")
 
-        session.delete(document)
+        document.deleted_at=datetime.utcnow()
+        session.add(document)
         session.commit()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete document: {str(e)}")
