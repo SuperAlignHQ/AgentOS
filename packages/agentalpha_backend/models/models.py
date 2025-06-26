@@ -19,7 +19,7 @@ class Status(str,enum.Enum):
 class Organization(SQLModel, table=True):
     __tablename__ = "organizations"
     id: UUID = Field(default_factory=uuid4, primary_key=True,unique=True)
-    name: str = Field(max_length=255)
+    name: str = Field(max_length=255,unique=True)
 
     workflows: List["Workflow"] = Relationship(back_populates="organization")
 

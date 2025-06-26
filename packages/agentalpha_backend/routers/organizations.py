@@ -4,18 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException,status
 from sqlmodel import Session, select
 from models.models import Organization
 from database import get_session
+from schemas.OrganizationSchema import OrganizationRead,OrganizationRequest
 
 router=APIRouter()
 
 #Creating a New Organization
-@router.post("/",response_model=Organization,status_code=status.HTTP_201_CREATED)
-def create_organization(request:Organization):
+@router.post("/",response_model=OrganizationRead,status_code=status.HTTP_201_CREATED)
+def create_organization(request:OrganizationRequest,session:Session=Depends(get_session)):
     try:
-        with get_session() as session:
-            session.add(request)
-            session.commit()
-            session.refresh(request)
-            return request
+        organization=Organization(
+            id=uuid4(),
+            name=request.name
+        )
+        session.add(organization)
+        session.commit()
+        session.refresh(organization)
+        return organization
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -23,13 +27,13 @@ def create_organization(request:Organization):
         )
     
 #Listing all Organizations    
-@router.get("/",response_model=List[Organization])
+@router.get("/",response_model=List[OrganizationRead])
 def get_all_organizations(session:Session=Depends(get_session)):
     return session.exec(select(Organization)).all()
 
 
 #Listing a Particular Organization With its id        
-@router.get("/{org_id}", response_model=Organization)
+@router.get("/{org_id}", response_model=OrganizationRead)
 def get_organization(
     org_id: UUID,
     session: Session = Depends(get_session),
@@ -42,23 +46,22 @@ def get_organization(
 
 
 #Updating or Patching the Organization Field name
-@router.put("/{org_id}", response_model=Organization)
+@router.put("/{org_id}", response_model=OrganizationRead)
 def update_organization(
     org_id: UUID,
-    request: Organization,
+    request: OrganizationRequest,
     session: Session = Depends(get_session),
-    #current_user: User = Depends(get_current_user),
 ):
     org = session.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-
     #  if current_user.role not in ["app_admin", "org_admin"] or (
     #      current_user.role != "app_admin" and current_user.org_id != org_id
     # ):
     #     raise HTTPException(status_code=403, detail="Not authorized")
+    for field, value in request.dict(exclude_unset=True).items():
+        setattr(org,field,value)
 
-    org.name = request.name
     session.add(org)
     session.commit()
     session.refresh(org)

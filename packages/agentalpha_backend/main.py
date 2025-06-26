@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from database import create_db_and_tables,drop_all_tables
-from routers import auth, documentTypes, organizations,workflows,policies,users,documents,org_policies
+from routers import global_policies
+from routers import auth, documentTypes, organizations,workflows,documents,org_policies
 
 app=FastAPI()
 
@@ -10,9 +11,8 @@ app.include_router(organizations.router, prefix="/organizations", tags=["Organiz
 app.include_router(workflows.router, prefix="/organizations/{org_id}/workflows", tags=["Workflows"])
 app.include_router(documentTypes.router, prefix="/organizations/{org_id}/workflows/{workflow_id}", tags=["DocumentTypes"])
 app.include_router(documents.router, prefix="/organizations/{org_id}/workflows/{workflow_id}", tags=["Documents"])
-app.include_router(policies.router, prefix="/policies", tags=["Policies"])
+app.include_router(global_policies.router, prefix="/policies", tags=["Policies"])
 app.include_router(org_policies.router,prefix="/organizations",tags=["Org Policies"])
-app.include_router(users.router, prefix="/auth", tags=["Users"])
 
 
 @app.get('/create')
