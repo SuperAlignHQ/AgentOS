@@ -1,10 +1,11 @@
 from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, VARCHAR, Column, ForeignKey
 from typing import Optional, List
 from uuid import UUID,uuid4
 from datetime import datetime
 import enum
 from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 
 #App Service
@@ -21,7 +22,10 @@ class Organization(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True,unique=True)
     name: str = Field(max_length=255,unique=True)
 
-    workflows: List["Workflow"] = Relationship(back_populates="organization")
+    workflows: List["Workflow"] = Relationship(back_populates="organization",sa_relationship_kwargs={
+        "cascade": "all, delete-orphan",
+        "passive_deletes": True
+    })
 
 
 # Role Table
@@ -105,7 +109,11 @@ class Workflow(SQLModel, table=True):
     name: str = Field(max_length=255)
     documents_list: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     policies_list: Optional[dict] = Field(default=None, sa_column=Column(JSON))
-    org_id: UUID = Field(foreign_key="organizations.id")
+    org_id: UUID = Field(sa_column=Column(
+            PG_UUID(as_uuid=True),
+            ForeignKey("organizations.id", ondelete="CASCADE"),
+            nullable=False
+        ))
     status:Status
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -114,7 +122,10 @@ class Workflow(SQLModel, table=True):
     updated_by: Optional[UUID] = Field(default=None,foreign_key="users.id")
 
     organization: Optional["Organization"] = Relationship(back_populates="workflows")
-    documents: List["Document"] = Relationship(back_populates="workflow")
+    documents: List["Document"] = Relationship(back_populates="workflow",sa_relationship_kwargs={
+        "cascade": "all, delete-orphan",
+        "passive_deletes": True
+    })
     creator: Optional["User"] = Relationship(
         back_populates="created_workflows",
         sa_relationship_kwargs={"foreign_keys": "[Workflow.created_by]"}
@@ -129,7 +140,11 @@ class Document(SQLModel, table=True):
     __tablename__ = "documents"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     format: str = Field(max_length=200)
-    type: str = Field(max_length=200,foreign_key="document_type_master.type")
+    type: str = Field(max_length=200,sa_column=Column(
+        VARCHAR(200),
+        ForeignKey("document_type_master.type", ondelete="CASCADE"),
+        nullable=False
+    ))
     category:str=Field(max_length=200)
     name: str = Field(max_length=50)
     url: str = Field(max_length=2048)
@@ -138,8 +153,13 @@ class Document(SQLModel, table=True):
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
     created_by: Optional[UUID] = Field(default=None,foreign_key="users.id")
-    workflow_id: UUID = Field(foreign_key="workflows.id")
+    workflow_id: UUID = Field( sa_column=Column(
+          PG_UUID(as_uuid=True),
+            ForeignKey("workflows.id", ondelete="CASCADE"),
+            nullable=False
+        ))
 
+    
     workflow: Optional["Workflow"] = Relationship(back_populates="documents")
     document_type_master:Optional["DocumentTypeMaster"]=Relationship(back_populates="documents")
     creator: Optional["User"] = Relationship(
@@ -177,7 +197,10 @@ class DocumentTypeMaster(SQLModel, table=True):
     no_of_fields: int
     fields_list: Optional[dict] = Field(default=None, sa_column=Column(JSON))
 
-    documents:List["Document"]=Relationship(back_populates="document_type_master")
+    documents:List["Document"]=Relationship(back_populates="document_type_master",sa_relationship_kwargs={
+        "cascade": "all, delete-orphan",
+        "passive_deletes": True
+    })
 
 
 

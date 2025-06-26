@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing import List
 from uuid import UUID,uuid4
 from fastapi import APIRouter, Depends, HTTPException,status
-from sqlmodel import Session, select
-from models.models import Organization
+from sqlmodel import Session, select, update
+from models.models import Document, Organization, Workflow
 from database import get_session
 from schemas.OrganizationSchema import OrganizationRead,OrganizationRequest
 
@@ -67,21 +68,21 @@ def update_organization(
     session.refresh(org)
     return org
 
-
-#Deleting a particular Organization
 @router.delete("/{org_id}")
 def delete_organization(
     org_id: UUID,
     session: Session = Depends(get_session),
-    #current_user: User = Depends(get_current_user),
+    # current_user: User = Depends(get_current_user),
 ):
     org = session.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
+    # Optional RBAC check
     # if current_user.role != "app_admin":
     #     raise HTTPException(status_code=403, detail="Only App Admin can delete organizations")
 
     session.delete(org)
     session.commit()
-    return {"detail": "Organization deleted successfully"}
+
+    return {"detail": "Organization and all related workflows/documents hard deleted successfully"}
