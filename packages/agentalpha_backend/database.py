@@ -8,7 +8,14 @@ from models.models import (
 
 DATABASE_URL = "postgresql://postgres:password@localhost:5432/superalign"
 
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL,
+                       pool_size=20,
+                       max_overflow=30,
+                        echo=True)
+
+
+
+
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
