@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import JSON, VARCHAR, Column, ForeignKey
 from typing import Optional, List
@@ -14,6 +15,19 @@ class Status(str,enum.Enum):
     PENDING="Pending Approval"
     FLAGGED="Flagged"
     REJECTED="Rejected"
+
+#Json Object for policieslist
+
+class PolicyListJson(BaseModel):
+    name:str
+    id:str
+    result:Optional[str]=None
+
+#Json object for DocumentsList
+class DocumentListJson(BaseModel):
+    name:str
+    id:str
+    url:Optional[str]=None
 
 
 # Organizations Table
@@ -107,8 +121,8 @@ class Workflow(SQLModel, table=True):
     __tablename__ = "workflows"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(max_length=255)
-    documents_list: Optional[dict] = Field(default=None, sa_column=Column(JSON))
-    policies_list: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    documents_list: Optional[DocumentListJson] = Field(default=None, sa_column=Column(JSON))
+    policies_list: Optional[List[PolicyListJson]] = Field(default=None, sa_column=Column(JSON))
     org_id: UUID = Field(sa_column=Column(
             PG_UUID(as_uuid=True),
             ForeignKey("organizations.id", ondelete="CASCADE"),
@@ -219,7 +233,7 @@ class PolicyMaster(SQLModel,table=True):
     description:str= Field(max_length=200)
     type:PolicyType
     policy_function:str=Field(max_length=20)
-    list_of_documents:Optional[list] = Field(default=None, sa_column=Column(JSON))
+    list_of_documents:Optional[DocumentListJson] = Field(default=None, sa_column=Column(JSON))
     variables:Optional[dict] = Field(default=None, sa_column=Column(JSON))
     created_at: datetime
     updated_at: Optional[datetime] = None

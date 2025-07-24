@@ -2,12 +2,12 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel
-from models.models import Status
+from models.models import Status,DocumentListJson,PolicyListJson
 
 class WorkFlowInput(BaseModel):
     name: str
-    documents_list: Optional[dict]=None
-    policies_list: Optional[dict]=None
+    documents_list: Optional[DocumentListJson]=None
+    policies_list: Optional[PolicyListJson]=None
     status:Status
 
 class WorkFlowUpdateInput(BaseModel):
@@ -20,8 +20,8 @@ class WorkFlowUpdateInput(BaseModel):
 class WorkFlowRead(BaseModel):
     id:UUID
     name:str
-    documents_list:Optional[dict]=None
-    policies_list:Optional[dict]=None
+    documents_list:Optional[DocumentListJson]=None
+    policies_list:Optional[PolicyListJson]=None
     status:Status
     created_at:datetime
     updated_at:Optional[datetime]=None

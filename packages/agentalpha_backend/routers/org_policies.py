@@ -54,11 +54,11 @@ def create_org_specific_policy(request:PolicyMasterInput,org_id:UUID,token:str,s
 
         org_policy_map=session.get(OrganizationPolicyMap,org_id)
         if org_policy_map:
-            org_policy_map.list_of_policy_master_types.append(str(new_policy.id))
+            org_policy_map.list_of_policy_master_types.append(str(new_policy.name))
         else:
             org_policy_map=OrganizationPolicyMap(
                 org_id=org_id,
-                list_of_policy_master_types=[str(new_policy.id)]
+                list_of_policy_master_types=[str(new_policy.name)]
             )
         session.add(org_policy_map)
         session.commit()
@@ -102,7 +102,7 @@ def get_all_OrgSpecific_policies(org_id:UUID,token:str,session:Session=Depends(g
 
         # Step 3: Fetch and return global policies
         org_policies = session.exec(
-            select(PolicyMaster).where(PolicyMaster.type == "org")
+            select(PolicyMaster).where(PolicyMaster.type == PolicyType.ORG)
         ).all()
 
         return org_policies  
@@ -173,7 +173,7 @@ def update_org_policy(org_id: UUID,org_policy_id: UUID, token: str,updated_data:
 
     # Ensure this policy is associated with the org
     org_policy_map = session.get(OrganizationPolicyMap, org_id)
-    if not org_policy_map or str(policy.id) not in org_policy_map.list_of_policy_master_types:
+    if not org_policy_map or str(policy.name) not in org_policy_map.list_of_policy_master_types:
         raise HTTPException(status_code=404, detail="Policy not associated with this organization")
 
     # Update fields dynamically
@@ -218,11 +218,11 @@ def delete_org_policy(
 
     # Ensure the policy belongs to this org
     org_policy_map = session.get(OrganizationPolicyMap, org_id)
-    if not org_policy_map or str(policy.id) not in org_policy_map.list_of_policy_master_types:
+    if not org_policy_map or str(policy.name) not in org_policy_map.list_of_policy_master_types:
         raise HTTPException(status_code=404, detail="Policy not associated with this organization")
 
     # Remove policy ID from org_policy_map
-    org_policy_map.list_of_policy_master_types.remove(str(policy.id))
+    org_policy_map.list_of_policy_master_types.remove(str(policy.name))
     session.add(org_policy_map)
     
     policy.deleted_at = datetime.utcnow()
