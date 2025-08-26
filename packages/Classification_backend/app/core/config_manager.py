@@ -5,7 +5,6 @@ from app.services.application_service import ApplicationService
 from app.services.audit_service import AuditService
 from app.services.config_service import ConfigService
 from app.services.org_service import OrgService
-from app.services.test_service import TestService
 from app.core.logging_config import logger
 from app.services.usecase_service import UsecaseService
 from app.services.user_service import UserService
@@ -22,7 +21,6 @@ class ConfigManager:
 
         self.settings = get_settings()
         self.database = Database()
-        self._test_service = TestService.get_instance()
         self._application_service = ApplicationService.get_instance()
         self._config_service = ConfigService.get_instance()
         self._usecase_service = UsecaseService.get_instance()
@@ -78,10 +76,6 @@ class ConfigManager:
 
     # properties
 
-    @property
-    def test_service(self) -> TestService:
-        return self._test_service
-    
     @property
     def application_service(self) -> ApplicationService:
         return self._application_service

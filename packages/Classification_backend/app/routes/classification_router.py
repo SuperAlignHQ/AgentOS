@@ -4,6 +4,14 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config_manager import ConfigManager
+from app.core.exception_handler import (
+    BadRequestException,
+    DatabaseException,
+    FileProcessingException,
+    NotFoundException,
+    ValidationException,
+)
+from app.core.logging_config import logger
 from app.core.util import (
     authorize_user,
     get_current_user,
@@ -12,7 +20,11 @@ from app.core.util import (
     validate_org_usecase,
 )
 from app.db.models import ActionTypeEnum, TargetEnum, User
-from app.schemas.application_schema import CreateApplicationRequest, CreateApplicationResponse, GetApplicationsResponse
+from app.schemas.application_schema import (
+    CreateApplicationRequest,
+    CreateApplicationResponse,
+    GetApplicationsResponse,
+)
 from app.schemas.util import PaginationQuery
 from app.services.application_service import ApplicationService
 
@@ -37,23 +49,32 @@ async def get_all_applications(
     application_service: ApplicationService = Depends(get_application_service),
 ):
     """Get all Applications"""
-    org_member = await validate_org_member(org_id, user, db)
-    authorize_user(user.role, org_member.role if org_member else None, TargetEnum.APPLICATION, ActionTypeEnum.READ)
+    try:
+        org_member = await validate_org_member(org_id, user, db)
+        authorize_user(
+            user.role,
+            org_member.role if org_member else None,
+            TargetEnum.APPLICATION,
+            ActionTypeEnum.READ,
+        )
 
-    config_manager = ConfigManager.get_instance()
-    org = await config_manager.org_service.get_org_by_id(org_id, db)
-    usecase = await config_manager.usecase_service.get_usecase_by_id(
-        usecase_id, db
-    )
+        config_manager = ConfigManager.get_instance()
+        org = await config_manager.org_service.get_org_by_id(org_id, db)
+        usecase = await config_manager.usecase_service.get_usecase_by_id(usecase_id, db)
 
-    validate_org_usecase(org, usecase)
+        validate_org_usecase(org, usecase)
 
-    return await application_service.get_all_applications(
-        org,
-        usecase,
-        pagination,
-        db
-    )
+        return await application_service.get_all_applications(
+            org, usecase, pagination, db
+        )
+    except (NotFoundException, ValidationException, BadRequestException) as e:
+        logger.error(f"Error in get_all_applications: {str(e)}")
+        raise e
+    except Exception as e:
+        logger.error(
+            f"Unexpected error in get_all_applications: {str(e)}", exc_info=True
+        )
+        raise DatabaseException(f"Failed to retrieve applications: {str(e)}")
 
 
 @router.post("", response_model=CreateApplicationResponse)
@@ -67,22 +88,39 @@ async def create_application(
     application_service: ApplicationService = Depends(get_application_service),
 ):
     """Create a new Application"""
-    org_member = await validate_org_member(org_id, user, db)
-    authorize_user(user.role, org_member.role if org_member else None, TargetEnum.APPLICATION, ActionTypeEnum.CREATE)
+    try:
+        # Validate files
+        if not files:
+            raise BadRequestException("At least one file is required")
 
-    config_manager = ConfigManager.get_instance()
+        for file in files:
+            if not file.filename or not file.content_type:
+                raise BadRequestException("Invalid file provided")
 
-    org = await config_manager.org_service.get_org_by_id(org_id, db)
-    usecase = await config_manager.usecase_service.get_usecase_by_id(
-        usecase_id, db
-    )
+        org_member = await validate_org_member(org_id, user, db)
+        authorize_user(
+            user.role,
+            org_member.role if org_member else None,
+            TargetEnum.APPLICATION,
+            ActionTypeEnum.CREATE,
+        )
 
-    validate_org_usecase(org, usecase)
+        config_manager = ConfigManager.get_instance()
 
-    return await application_service.create_application(
-        org,
-        usecase,
-        application_data,
-        files,
-        db
-    )
+        org = await config_manager.org_service.get_org_by_id(org_id, db)
+        usecase = await config_manager.usecase_service.get_usecase_by_id(usecase_id, db)
+
+        validate_org_usecase(org, usecase)
+
+        return await application_service.create_application(
+            org, usecase, application_data, files, db
+        )
+    except (NotFoundException, ValidationException, BadRequestException) as e:
+        logger.error(f"Error in create_application: {str(e)}")
+        raise e
+    except FileProcessingException as e:
+        logger.error(f"File processing error in create_application: {str(e)}")
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error in create_application: {str(e)}", exc_info=True)
+        raise DatabaseException(f"Failed to create application: {str(e)}")

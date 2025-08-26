@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple
 from uuid import UUID
 from sqlmodel import col, select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
+from app.core.exception_handler import DatabaseException
 from app.core.logging_config import logger
 from app.db.models import (
     ActionTypeEnum,
@@ -15,7 +16,11 @@ from app.db.models import (
     User,
 )
 from app.repositories.config_repo import ConfigRepo
-from app.schemas.config_schema import CreateConfigurationRequest, DeleteConfigRequest, GetConfigResponse
+from app.schemas.config_schema import (
+    CreateConfigurationRequest,
+    DeleteConfigRequest,
+    GetConfigResponse,
+)
 from app.schemas.util import EmptyResponse
 
 OPTIONAL = "optional"
@@ -71,29 +76,35 @@ class ConfigService:
         """
         Create application type
         """
-        app_type = ApplicationType(
-            application_type_code=application_type,
-            org_id=org_id,
-            created_by=user_id,
-            updated_by=user_id,
-        )
-        db.add(app_type)
-        await db.commit()
-        await db.refresh(app_type)
-        
-        from app.core.config_manager import ConfigManager
-        await ConfigManager.get_instance().audit_service.create_audit_log(
-            db,
-            AuditLog(
-                change_type=ActionTypeEnum.CREATE,
-                title=f"Application type '{app_type.application_type_code}' created",
-                target_name=TargetEnum.APPLICATION_TYPE,
+        try:
+            app_type = ApplicationType(
+                application_type_code=application_type,
                 org_id=org_id,
-                actor_id=user_id,
-                target_id=app_type.application_type_id,
+                created_by=user_id,
+                updated_by=user_id,
             )
-        )
-        return app_type
+            db.add(app_type)
+            await db.commit()
+            await db.refresh(app_type)
+
+            from app.core.config_manager import ConfigManager
+
+            await ConfigManager.get_instance().audit_service.create_audit_log(
+                db,
+                AuditLog(
+                    change_type=ActionTypeEnum.CREATE,
+                    title=f"Application type '{app_type.application_type_code}' created",
+                    target_name=TargetEnum.APPLICATION_TYPE,
+                    org_id=org_id,
+                    actor_id=user_id,
+                    target_id=app_type.application_type_id,
+                ),
+            )
+            return app_type
+        except Exception as e:
+            logger.error(f"Error in create_application_type: {str(e)}", exc_info=True)
+            await db.rollback()
+            raise DatabaseException(f"Failed to create application type: {str(e)}")
 
     async def get_doc_type(
         self, doc_type: str, category: str, db: AsyncSession
@@ -101,14 +112,18 @@ class ConfigService:
         """
         Get document type from doc_type name and category
         """
-        doc_type = await db.exec(
-            select(DocumentType).where(
-                DocumentType.name == doc_type, DocumentType.category == category
+        try:
+            doc_type_result = await db.exec(
+                select(DocumentType).where(
+                    DocumentType.name == doc_type, DocumentType.category == category
+                )
             )
-        )
-        if doc_type:
-            return doc_type.first()
-        return None
+            if doc_type_result:
+                return doc_type_result.first()
+            return None
+        except Exception as e:
+            logger.error(f"Error in get_doc_type: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to get document type: {str(e)}")
 
     async def create_doc_type(
         self, doc_type: str, category: str, user: User, db: AsyncSession
@@ -116,16 +131,21 @@ class ConfigService:
         """
         Create document type
         """
-        doc_type = DocumentType(
-            name=doc_type,
-            category=category,
-            created_by=user.user_id,
-            updated_by=user.user_id,
-        )
-        db.add(doc_type)
-        await db.commit()
-        await db.refresh(doc_type)
-        return doc_type
+        try:
+            doc_type_obj = DocumentType(
+                name=doc_type,
+                category=category,
+                created_by=user.user_id,
+                updated_by=user.user_id,
+            )
+            db.add(doc_type_obj)
+            await db.commit()
+            await db.refresh(doc_type_obj)
+            return doc_type_obj
+        except Exception as e:
+            logger.error(f"Error in create_doc_type: {str(e)}", exc_info=True)
+            await db.rollback()
+            raise DatabaseException(f"Failed to create document type: {str(e)}")
 
     async def create_association_model(
         self,
@@ -140,25 +160,26 @@ class ConfigService:
         """
         Create configuration
         """
+        try:
+            doc_type_obj = await self.get_doc_type(doc_type, category, db)
 
-        doc_type_obj = await self.get_doc_type(doc_type, category, db)
+            # create document type if not exists
+            if not doc_type_obj:
+                doc_type_obj = await self.create_doc_type(doc_type, category, user, db)
 
-        # create document type if not exists
-        if not doc_type_obj:
-            doc_type_obj = await self.create_doc_type(doc_type, category, user, db)
-
-        # create application_type document_type association
-        # config_model = self.create_config_model(application_type.application_type_id, usecase.usecase_id, doc_type_obj, user, is_optional, db)
-
-        config = ApplicationTypeDocumentTypeAssociation(
-            application_type_id=application_type_id,
-            document_type_id=doc_type_obj.document_type_id,
-            usecase_id=usecase_id,
-            is_optional=is_optional,
-            created_by=user.user_id,
-            updated_by=user.user_id,
-        )
-        return config
+            # create application_type document_type association
+            config = ApplicationTypeDocumentTypeAssociation(
+                application_type_id=application_type_id,
+                document_type_id=doc_type_obj.document_type_id,
+                usecase_id=usecase_id,
+                is_optional=is_optional,
+                created_by=user.user_id,
+                updated_by=user.user_id,
+            )
+            return config
+        except Exception as e:
+            logger.error(f"Error in create_association_model: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to create association model: {str(e)}")
 
     async def get_associations_for_application_type(
         self, application_type_id: UUID, usecase_id: UUID, db: AsyncSession
@@ -166,14 +187,23 @@ class ConfigService:
         """
         Get associations for application type
         """
-        associations = await db.exec(
-            select(ApplicationTypeDocumentTypeAssociation).where(
-                ApplicationTypeDocumentTypeAssociation.application_type_id
-                == application_type_id,
-                ApplicationTypeDocumentTypeAssociation.usecase_id == usecase_id,
+        try:
+            associations = await db.exec(
+                select(ApplicationTypeDocumentTypeAssociation).where(
+                    ApplicationTypeDocumentTypeAssociation.application_type_id
+                    == application_type_id,
+                    ApplicationTypeDocumentTypeAssociation.usecase_id == usecase_id,
+                )
             )
-        )
-        return associations.all()
+            return associations.all()
+        except Exception as e:
+            logger.error(
+                f"Error in get_associations_for_application_type: {str(e)}", 
+                exc_info=True
+            )
+            raise DatabaseException(
+                f"Failed to get associations for application type: {str(e)}"
+            )
 
     async def update_association(
         self,
@@ -186,67 +216,87 @@ class ConfigService:
         """
         Update association
         """
+        try:
+            update_associations = []
+            create_associations = []
+            logs = []
 
-        update_associations = []
-        create_associations = []
-        logs = []
+            existing_associations = await self.get_associations_for_application_type(
+                application_type.application_type_id, usecase.usecase_id, db
+            )
 
-        existing_associations = await self.get_associations_for_application_type(
-            application_type.application_type_id, usecase.usecase_id, db
-        )
+            # transform existing associations to a dictionary for easier lookup
+            existing_associations_dict = {
+                f"{assoc.document_type.category}_$_{assoc.document_type.name}": assoc
+                for assoc in existing_associations
+            }
 
-        # transform existing associations to a dictionary for easier lookup
-        existing_associations_dict = {
-            f"{assoc.document_type.category}_$_{assoc.document_type.name}": assoc
-            for assoc in existing_associations
-        }
+            for category, docs in config.config.items():
+                category = category.lower()
+                for doc in docs:
+                    doc_type = doc[0].lower()
+                    is_optional = doc[1].lower() == OPTIONAL
 
-        for category, docs in config.config.items():
-            category = category.lower()
-            for doc in docs:
-                doc_type = doc[0].lower()
-                is_optional = doc[1].lower() == OPTIONAL
+                    # check if association exist or not
+                    assoc_key = f"{category}_$_{doc_type}"
+                    if assoc_key in existing_associations_dict:
+                        # update existing association
+                        assoc = existing_associations_dict[assoc_key]
+                        if assoc.is_optional != is_optional:
+                            assoc.is_optional = is_optional
+                            update_associations.append(assoc)
 
-                # check if association exist or not
-                assoc_key = f"{category}_$_{doc_type}"
-                if assoc_key in existing_associations_dict:
-                    # update existing association
-                    assoc = existing_associations_dict[assoc_key]
-                    if assoc.is_optional != is_optional:
-                        assoc.is_optional = is_optional
-                        update_associations.append(assoc)
+                        logs.append(
+                            AuditLog(
+                                change_type=ActionTypeEnum.UPDATE,
+                                title=(
+                                    f"Association between application type "
+                                    f"'{application_type.application_type_code}' and "
+                                    f"document type '{doc_type}' in category '{category}' "
+                                    f"made {OPTIONAL if is_optional else MANDATORY}"
+                                ),
+                                target_name=TargetEnum.CONFIG,
+                                org_id=application_type.org_id,
+                                actor_id=user.user_id,
+                                target_id=assoc.application_type_document_type_association_id,
+                            )
+                        )
+                    else:
+                        # create new association
+                        association_model = await self.create_association_model(
+                            application_type.application_type_id,
+                            usecase.usecase_id,
+                            doc_type,
+                            category,
+                            user,
+                            is_optional,
+                            db,
+                        )
+                        if association_model:
+                            create_associations.append(association_model)
+                            logs.append(
+                                AuditLog(
+                                    change_type=ActionTypeEnum.CREATE,
+                                    title=(
+                                        f"Association between application type "
+                                        f"'{application_type.application_type_code}' and "
+                                        f"document type '{doc_type}' in category "
+                                        f"'{category}' created"
+                                    ),
+                                    target_name=TargetEnum.CONFIG,
+                                    org_id=application_type.org_id,
+                                    actor_id=user.user_id,
+                                    target_id=(
+                                        association_model.
+                                        application_type_document_type_association_id
+                                    ),
+                                )
+                            )
 
-                    logs.append(AuditLog(
-                        change_type=ActionTypeEnum.UPDATE,
-                        title=f"Association between application type '{application_type.application_type_code}' and document type '{doc_type}' in category '{category}' made {OPTIONAL if is_optional else MANDATORY}",
-                        target_name=TargetEnum.CONFIG,
-                        org_id=application_type.org_id,
-                        actor_id=user.user_id,
-                        target_id=assoc.application_type_document_type_association_id,
-                    ))
-                else:
-                    # create new association
-                    association_model = await self.create_association_model(
-                        application_type.application_type_id,
-                        usecase.usecase_id,
-                        doc_type,
-                        category,
-                        user,
-                        is_optional,
-                        db,
-                    )
-                    if association_model:
-                        create_associations.append(association_model)
-                        logs.append(AuditLog(
-                            change_type=ActionTypeEnum.CREATE,
-                            title=f"Association between application type '{application_type.application_type_code}' and document type '{doc_type}' in category '{category}' created",
-                            target_name=TargetEnum.CONFIG,
-                            org_id=application_type.org_id,
-                            actor_id=user.user_id,
-                            target_id=association_model.application_type_document_type_association_id ,
-                        ))
-
-        return create_associations, update_associations, logs
+            return create_associations, update_associations, logs
+        except Exception as e:
+            logger.error(f"Error in update_association: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to update association: {str(e)}")
 
     async def create_association(
         self,
@@ -259,37 +309,51 @@ class ConfigService:
         """
         Create association
         """
-        # iterate over docs
-        associations = []
-        logs = []
-        for category, docs in config.config.items():
-            category = category.lower()
-            for doc in docs:
-                doc_type = doc[0].lower()
-                is_optional = doc[1].lower() == OPTIONAL
+        try:
+            # iterate over docs
+            associations = []
+            logs = []
+            for category, docs in config.config.items():
+                category = category.lower()
+                for doc in docs:
+                    doc_type = doc[0].lower()
+                    is_optional = doc[1].lower() == OPTIONAL
 
-                # create association model
-                association_model = await self.create_association_model(
-                    application_type.application_type_id,
-                    usecase.usecase_id,
-                    doc_type,
-                    category,
-                    user,
-                    is_optional,
-                    db,
-                )
-                if association_model:
-                    associations.append(association_model)
-                    logs.append(AuditLog(
-                        change_type=ActionTypeEnum.CREATE,
-                        title=f"Association between application type '{application_type.application_type_code}' and document type '{doc_type}' in category '{category}' created",
-                        target_name=TargetEnum.CONFIG,
-                        org_id=application_type.org_id,
-                        actor_id=user.user_id,
-                        target_id=association_model.application_type_document_type_association_id ,
-                    ))
+                    # create association model
+                    association_model = await self.create_association_model(
+                        application_type.application_type_id,
+                        usecase.usecase_id,
+                        doc_type,
+                        category,
+                        user,
+                        is_optional,
+                        db,
+                    )
+                    if association_model:
+                        associations.append(association_model)
+                        logs.append(
+                            AuditLog(
+                                change_type=ActionTypeEnum.CREATE,
+                                title=(
+                                    f"Association between application type "
+                                    f"'{application_type.application_type_code}' and "
+                                    f"document type '{doc_type}' in category "
+                                    f"'{category}' created"
+                                ),
+                                target_name=TargetEnum.CONFIG,
+                                org_id=application_type.org_id,
+                                actor_id=user.user_id,
+                                target_id=(
+                                    association_model.
+                                    application_type_document_type_association_id
+                                ),
+                            )
+                        )
 
-        return associations, logs
+            return associations, logs
+        except Exception as e:
+            logger.error(f"Error in create_association: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to create association: {str(e)}")
 
     async def create_configuration(
         self,
@@ -302,56 +366,66 @@ class ConfigService:
         """
         Create configuration
         """
+        try:
+            create_associations = []
+            update_associations = []
+            logs = []
 
-        create_associations = []
-        update_associations = []
-        logs = []
-
-        for config in config_data:
-            application_type = await self.get_application_type_by_code(
-                config.application_type, db
-            )
-            if application_type:
-                create_associations_models, update_associations_models, logs_models = (
-                    await self.update_association(
+            for config in config_data:
+                application_type = await self.get_application_type_by_code(
+                    config.application_type, db
+                )
+                if application_type:
+                    (
+                        create_associations_models, 
+                        update_associations_models, 
+                        logs_models
+                    ) = await self.update_association(
                         application_type, config, usecase, user, db
                     )
-                )
-                create_associations.extend(create_associations_models)
-                update_associations.extend(update_associations_models)
-                logs.extend(logs_models)
-                # existing_application_types += f"{application_type.application_type_code}, "
-                # continue
-            else:
-                application_type = await self.create_application_type(
-                    config.application_type, org.org_id, user.user_id, db
-                )
-                associations, logs_models = await self.create_association(
-                    application_type, config, usecase, user, db
-                )
-                create_associations.extend(associations)
-                logs.extend(logs_models)
+                    create_associations.extend(create_associations_models)
+                    update_associations.extend(update_associations_models)
+                    logs.extend(logs_models)
+                    # existing_application_types += f"{application_type.application_type_code}, "
+                    # continue
+                else:
+                    application_type = await self.create_application_type(
+                        config.application_type, org.org_id, user.user_id, db
+                    )
+                    associations, logs_models = await self.create_association(
+                        application_type, config, usecase, user, db
+                    )
+                    create_associations.extend(associations)
+                    logs.extend(logs_models)
 
-        # add associations to db
-        db.add_all(create_associations)
-        db.add_all(logs)
-        # db.add_all(update_associations)
-        await db.commit()
+            # add associations to db
+            db.add_all(create_associations)
+            db.add_all(logs)
+            # db.add_all(update_associations)
+            await db.commit()
 
-        return EmptyResponse(
-            message="Configuration created successfully", status_code=201
-        )
+            return EmptyResponse(
+                message="Configuration created successfully", status_code=201
+            )
+        except Exception as e:
+            logger.error(f"Error in create_configuration: {str(e)}", exc_info=True)
+            await db.rollback()
+            raise DatabaseException(f"Failed to create configuration: {str(e)}")
 
-    async def transformed_doc_types(self, db: AsyncSession) -> List[DocumentType]:
+    async def transformed_doc_types(self, db: AsyncSession) -> dict:
         """
         Get transformed document types
         """
-        doc_types = await db.exec(select(DocumentType))
-        transformed_doc_types = {}
-        for doc_type in doc_types:
-            key = f"{doc_type.category}_$_{doc_type.name}"
-            transformed_doc_types[key] = doc_type
-        return transformed_doc_types
+        try:
+            doc_types = await db.exec(select(DocumentType))
+            transformed_doc_types = {}
+            for doc_type in doc_types:
+                key = f"{doc_type.category}_$_{doc_type.name}"
+                transformed_doc_types[key] = doc_type
+            return transformed_doc_types
+        except Exception as e:
+            logger.error(f"Error in transformed_doc_types: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to transform document types: {str(e)}")
 
     async def delete_configuration(
         self,
@@ -364,55 +438,79 @@ class ConfigService:
         """
         Delete configuration
         """
-        # get transformed document types
-        transformed_doc_types = await self.transformed_doc_types(db)
+        try:
+            # get transformed document types
+            transformed_doc_types = await self.transformed_doc_types(db)
 
-        logs = []
+            logs = []
 
-        for config in config_data:
-            application_type = await self.get_application_type_by_code(
-                config.application_type, db
-            )
-            if not application_type:
-                logger.error(f"Application type {config.application_type} does not exist")
-                continue
-
-            delete_doc_type_ids = []
-
-            for category, docs in config.config.items():
-                category = category.lower()
-                for doc in docs:
-                    doc_type = doc.lower()
-                    key = f"{category}_$_{doc_type}"
-                    if key in transformed_doc_types:
-                        # delete association
-                        delete_doc_type_ids.append(transformed_doc_types[key].document_type_id)
-                        logs.append(AuditLog(
-                            change_type=ActionTypeEnum.DELETE,
-                            title=f"Association between application type '{application_type.application_type_code}' and document type '{doc_type}' in category '{category}' deleted",
-                            target_name=TargetEnum.CONFIG,
-                            org_id=application_type.org_id,
-                            actor_id=user.user_id,
-                            target_id=None,
-                        ))
-            
-            # delete associations
-            await db.exec(
-                delete(ApplicationTypeDocumentTypeAssociation).where(
-                    ApplicationTypeDocumentTypeAssociation.application_type_id == application_type.application_type_id,
-                    ApplicationTypeDocumentTypeAssociation.usecase_id == usecase.usecase_id,
-                    col(ApplicationTypeDocumentTypeAssociation.document_type_id).in_(delete_doc_type_ids),
+            for config in config_data:
+                application_type = await self.get_application_type_by_code(
+                    config.application_type, db
                 )
+                if not application_type:
+                    logger.error(
+                        f"Application type {config.application_type} does not exist"
+                    )
+                    continue
+
+                delete_doc_type_ids = []
+
+                for category, docs in config.config.items():
+                    category = category.lower()
+                    for doc in docs:
+                        doc_type = doc.lower()
+                        key = f"{category}_$_{doc_type}"
+                        if key in transformed_doc_types:
+                            # delete association
+                            delete_doc_type_ids.append(
+                                transformed_doc_types[key].document_type_id
+                            )
+                            logs.append(
+                                AuditLog(
+                                    change_type=ActionTypeEnum.DELETE,
+                                    title=(
+                                        f"Association between application type "
+                                        f"'{application_type.application_type_code}' and "
+                                        f"document type '{doc_type}' in category "
+                                        f"'{category}' deleted"
+                                    ),
+                                    target_name=TargetEnum.CONFIG,
+                                    org_id=application_type.org_id,
+                                    actor_id=user.user_id,
+                                    target_id=None,
+                                )
+                            )
+
+                # delete associations
+                await db.exec(
+                    delete(ApplicationTypeDocumentTypeAssociation).where(
+                        ApplicationTypeDocumentTypeAssociation.application_type_id
+                        == application_type.application_type_id,
+                        ApplicationTypeDocumentTypeAssociation.usecase_id
+                        == usecase.usecase_id,
+                        col(ApplicationTypeDocumentTypeAssociation.document_type_id).in_(
+                            delete_doc_type_ids
+                        ),
+                    )
+                )
+
+                logger.info(
+                    f"Deleted associations for application type "
+                    f"{application_type.application_type_code} and usecase "
+                    f"{usecase.usecase_id}"
+                )
+
+            db.add_all(logs)
+            await db.commit()
+
+            return EmptyResponse(
+                message="Configuration deleted successfully", status_code=200
             )
-
-            logger.info(f"Deleted associations for application type {application_type.application_type_code} and usecase {usecase.usecase_id}")
-        
-        db.add_all(logs)
-        await db.commit()
-
-        return EmptyResponse(
-            message="Configuration deleted successfully", status_code=200
-        )
+        except Exception as e:
+            logger.error(f"Error in delete_configuration: {str(e)}", exc_info=True)
+            await db.rollback()
+            raise DatabaseException(f"Failed to delete configuration: {str(e)}")
 
     async def get_configuration(
         self,
@@ -423,44 +521,56 @@ class ConfigService:
         """
         Get configuration
         """
-        # get associations
-        associations = await db.exec(
-            select(ApplicationTypeDocumentTypeAssociation)
-            .where(
-                ApplicationTypeDocumentTypeAssociation.usecase_id == usecase.usecase_id
+        try:
+            # get associations
+            associations = await db.exec(
+                select(ApplicationTypeDocumentTypeAssociation).where(
+                    ApplicationTypeDocumentTypeAssociation.usecase_id == usecase.usecase_id
+                )
             )
-        )
-        associations = associations.all()
+            associations = associations.all()
 
-        # transform associations
+            # transform associations
 
-        # response structure
-        # [{
-        #     application_type: "A1",
-        #     docs: {
-        #         "income" : [
-        #                     ("payslip", "mandatory"),
-        #                     ("bank_statement", "mandatory")
-        #                 ],
-        #         "id_proof": {
-        #                     "passport": "optional"
-        #                 }
-        #     }
-        # }]
-        config = {}
+            # response structure
+            # [{
+            #     application_type: "A1",
+            #     docs: {
+            #         "income" : [
+            #                     ("payslip", "mandatory"),
+            #                     ("bank_statement", "mandatory")
+            #                 ],
+            #         "id_proof": {
+            #                     "passport": "optional"
+            #                 }
+            #     }
+            # }]
+            config = {}
 
-        for assoc in associations:
-            
-            if not config.get(assoc.application_type.application_type_code, None):
-                config[assoc.application_type.application_type_code] = {}
-            if not config.get(assoc.application_type.application_type_code).get(assoc.document_type.category):
-                config[assoc.application_type.application_type_code][assoc.document_type.category] = []
+            for assoc in associations:
 
-            config.get(
-                assoc.application_type.application_type_code, {}
-            ).get(
-                assoc.document_type.category, []
-            ).append((assoc.document_type.name, MANDATORY if not assoc.is_optional else OPTIONAL))
+                if not config.get(assoc.application_type.application_type_code, None):
+                    config[assoc.application_type.application_type_code] = {}
+                if not config.get(assoc.application_type.application_type_code).get(
+                    assoc.document_type.category
+                ):
+                    config[assoc.application_type.application_type_code][
+                        assoc.document_type.category
+                    ] = []
 
-        return [GetConfigResponse(application_type=k, config=v) for k, v in config.items()]
+                config.get(assoc.application_type.application_type_code, {}).get(
+                    assoc.document_type.category, []
+                ).append(
+                    (
+                        assoc.document_type.name,
+                        MANDATORY if not assoc.is_optional else OPTIONAL,
+                    )
+                )
 
+            return [
+                GetConfigResponse(application_type=k, config=v) 
+                for k, v in config.items()
+            ]
+        except Exception as e:
+            logger.error(f"Error in get_configuration: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to get configuration: {str(e)}")

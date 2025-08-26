@@ -5,7 +5,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.exception_handler import UnauthorizedException, ValidationException
+from app.core.exception_handler import (
+    DatabaseException,
+    UnauthorizedException,
+    ValidationException,
+)
 from app.core.logging_config import logger
 from app.db.models import (
     ActionTypeEnum,
@@ -43,14 +47,22 @@ async def get_current_user(
         user = await db.exec(
             select(User).where(User.user_id == "dfef8c9e-e06a-46fc-a89a-0f4b1e5c8133")
         )
-        return user.first()
+        user_result = user.first()
+        if not user_result:
+            raise UnauthorizedException("User not found")
+        return user_result
+    except UnauthorizedException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to authenticate user: {str(e)}")
-        raise e
+        logger.error(f"Failed to authenticate user: {str(e)}", exc_info=True)
+        raise DatabaseException(f"Authentication failed: {str(e)}")
 
 
 def authorize_user(
-    user_role: Role, member_role: Optional[Role], resource: TargetEnum, action: ActionTypeEnum
+    user_role: Role,
+    member_role: Optional[Role],
+    resource: TargetEnum,
+    action: ActionTypeEnum,
 ):
     """
     Authorize user based on role, member role, resource, and action
@@ -59,14 +71,20 @@ def authorize_user(
         return True
 
     if member_role is None:
-        if user_role.permissions and user_role.permissions.get(resource.value) and action.value in user_role.permissions.get(resource.value):
+        if (
+            user_role.permissions
+            and user_role.permissions.get(resource.value)
+            and action.value in user_role.permissions.get(resource.value)
+        ):
             return True
 
-    if member_role and member_role.permissions.get(resource.value) and (
-        action.value in member_role.permissions.get(resource.value)
+    if (
+        member_role
+        and member_role.permissions.get(resource.value)
+        and (action.value in member_role.permissions.get(resource.value))
     ):
         return True
-    
+
     raise UnauthorizedException(message="User is not authorized to perform this action")
 
 
