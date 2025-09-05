@@ -1,4 +1,5 @@
 import ssl
+from tenacity import retry, stop_after_attempt, wait_exponential
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -20,10 +21,12 @@ class Database:
             
             self.engine = create_async_engine(
                 settings.DATABASE_URL,
-                echo=True,
+                echo=settings.DEBUG,
+                pool_pre_ping=True,
                 pool_size=settings.POOL_SIZE,
                 max_overflow=settings.MAX_OVERFLOW,
                 pool_timeout=settings.POOL_TIMEOUT,
+                pool_recycle=3600,
                 future=True,
                 # connect_args={"ssl": ssl_context}
             )
@@ -39,6 +42,7 @@ class Database:
             logger.critical("Failed to create database engine", str(e), exc_info=True)
             raise e
 
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def get_session(self):
         """Dependency Injection for FastAPI routes"""
 

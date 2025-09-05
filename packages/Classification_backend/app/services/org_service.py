@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
+from sqlalchemy.orm import joinedload
 from sqlmodel import delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.exception_handler import BadRequestException, NotFoundException
@@ -185,6 +186,11 @@ class OrgService:
         """
         try:
             query = select(OrgMember).where(OrgMember.org_id == org.org_id)
+            query = query.options(
+                joinedload(OrgMember.user),
+                joinedload(OrgMember.role),
+                joinedload(OrgMember.org),
+            )
             query = query.offset((pagination.page - 1) * pagination.page_size)
             query = query.limit(pagination.page_size)
 

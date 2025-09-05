@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 from typing import Any, Dict, List, Optional
+from fastapi import Form
 from pydantic import BaseModel
 
 from app.db.models import Application, ApplicationStatus, UnderwriterStatus
@@ -62,9 +63,22 @@ class CreateApplicationRequest(BaseModel):
     """
     Create application request schema
     """
-    application_type: str
-    application_id: str
+    application_type: str = Form(...)
+    application_id: str = Form(...)
 
 
 class CreateApplicationResponse(BaseModel):
-    pass
+    application_id: str
+    application_type: str
+    status: ApplicationStatus
+    underwriter_status: UnderwriterStatus
+    underwriter_review: str
+    document_result: list
+
+
+class UpdateApplicationRequest(BaseModel):
+    """
+    Update application request schema
+    """
+    underwriter_status: UnderwriterStatus
+    underwriter_review: str

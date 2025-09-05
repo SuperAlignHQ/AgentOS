@@ -22,6 +22,7 @@ from app.schemas.config_schema import (
     GetConfigResponse,
 )
 from app.schemas.util import EmptyResponse
+from app.core.util import transform_doc_types
 
 OPTIONAL = "optional"
 MANDATORY = "mandatory"
@@ -412,20 +413,6 @@ class ConfigService:
             await db.rollback()
             raise DatabaseException(f"Failed to create configuration: {str(e)}")
 
-    async def transformed_doc_types(self, db: AsyncSession) -> dict:
-        """
-        Get transformed document types
-        """
-        try:
-            doc_types = await db.exec(select(DocumentType))
-            transformed_doc_types = {}
-            for doc_type in doc_types:
-                key = f"{doc_type.category}_$_{doc_type.name}"
-                transformed_doc_types[key] = doc_type
-            return transformed_doc_types
-        except Exception as e:
-            logger.error(f"Error in transformed_doc_types: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to transform document types: {str(e)}")
 
     async def delete_configuration(
         self,
@@ -440,7 +427,7 @@ class ConfigService:
         """
         try:
             # get transformed document types
-            transformed_doc_types = await self.transformed_doc_types(db)
+            transformed_doc_types = await transform_doc_types(db)
 
             logs = []
 

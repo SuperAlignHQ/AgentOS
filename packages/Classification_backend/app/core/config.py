@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     POOL_SIZE: int = 20
     MAX_OVERFLOW: int = 30
     POOL_TIMEOUT: int = 30
+    OCR_CLASSIFICATION_ENDPOINT: str = ""
+    DEBUG: bool = False
 
     model_config = SettingsConfigDict(env_file=".env")
 

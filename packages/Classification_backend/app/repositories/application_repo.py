@@ -1,12 +1,12 @@
 from typing import List, Tuple
 from uuid import UUID
 
-from sqlmodel import func, select
+from sqlmodel import false, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.exception_handler import DatabaseException
 from app.core.logging_config import logger
-from app.db.models import Application, ApplicationType, Org, Usecase
+from app.db.models import Application, ApplicationType, ApplicationTypeDocumentTypeAssociation, Org, Usecase, User
 from app.schemas.application_schema import CreateApplicationRequest
 from app.schemas.util import PaginationQuery
 
@@ -54,6 +54,7 @@ class ApplicationRepo:
         usecase: Usecase,
         application_data: CreateApplicationRequest,
         application_type: ApplicationType,
+        user: User,
         db: AsyncSession,
     ) -> Application:
         """
@@ -64,9 +65,32 @@ class ApplicationRepo:
                 underwriting_application_id=application_data.application_id,
                 application_type_id=application_type.application_type_id,
                 usecase_id=usecase.usecase_id,
-                created_by=org.member_id,
-                updated_by=org.member_id,
+                created_by=user.user_id,
+                updated_by=user.user_id,
             )
+
+            document_result = []
+            # get all document application type associations for application type
+            associations = await db.exec(
+                select(
+                    ApplicationTypeDocumentTypeAssociation).where(
+                        ApplicationTypeDocumentTypeAssociation.usecase_id == usecase.usecase_id,
+                        ApplicationTypeDocumentTypeAssociation.application_type_id == application_type.application_type_id
+                    )
+                )
+            associations = associations.all()
+
+            for association in associations:
+                document_result.append({
+                    "document_category": association.document_type.category,
+                    "document_type": association.document_type.name,
+                    "optional": association.is_optional,
+                    "result": False,
+                    "reason": f"{association.document_type.name} is missing from the application"
+                })
+
+            application.document_result = document_result
+
             db.add(application)
             await db.commit()
             await db.refresh(application)

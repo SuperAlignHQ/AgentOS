@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Integer, SQLModel, Field, Relationship
 from sqlalchemy import (
     Column,
     Enum as SqlEnum,
@@ -12,6 +12,8 @@ from typing import List, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime
 from enum import Enum
+
+from app.core.exception_handler import ValidationException
 
 
 class ApplicationStatus(str, Enum):
@@ -29,6 +31,13 @@ class UnderwriterStatus(str, Enum):
 
 class FileFormat(str, Enum):
     PDF = "pdf"
+
+    @classmethod
+    def get_file_format(cls, ext: str) -> "FileFormat":
+        try:
+            return cls(ext)
+        except ValueError:
+            raise ValidationException(f"Invalid file format: {ext}")
 
 
 class ActivityStatus(str, Enum):
@@ -103,6 +112,7 @@ class Org(SQLModel, table=True):
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "passive_deletes": True,
+            "lazy": "selectin",
         },
     )
 
@@ -147,19 +157,19 @@ class OrgMember(SQLModel, table=True):
     )
     org: Org = Relationship(
         sa_relationship_kwargs={
-            "lazy": "selectin",
+            "lazy": "joined",
         }
     )
     user: "User" = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "OrgMember.user_id == User.user_id",
             "foreign_keys": "OrgMember.user_id",
-            "lazy": "selectin",
+            "lazy": "joined",
         }
     )
     role: "Role" = Relationship(
         sa_relationship_kwargs={
-            "lazy": "selectin",
+            "lazy": "joined",
         }
     )
 
@@ -198,9 +208,10 @@ class Usecase(SQLModel, table=True):
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
             "passive_deletes": True,
+            "lazy": "selectin",
         },
     )
-    org: Org = Relationship(back_populates="usecases")
+    org: Org = Relationship(back_populates="usecases", sa_relationship_kwargs={"lazy": "joined"})
 
 
 class Role(SQLModel, table=True):
@@ -212,7 +223,7 @@ class Role(SQLModel, table=True):
     permissions: Dict[str, Any] = Field(default=dict(), sa_column=Column(JSONB))
     type: RoleType = Field(sa_column=Column(SqlEnum(RoleType)))
 
-    users: List["User"] = Relationship(back_populates="role")
+    users: List["User"] = Relationship(back_populates="role", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class User(SQLModel, table=True):
@@ -232,28 +243,12 @@ class User(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=datetime.now, sa_column=Column(TIMESTAMP(timezone=True))
     )
-    # created_by: UUID = Field(
-    #     sa_column=Column(
-    #         SqlUUID(as_uuid=True), ForeignKey("user.user_id"), nullable=False
-    #     )
-    # )
-    # updated_by: UUID = Field(
-    #     sa_column=Column(
-    #         SqlUUID(as_uuid=True), ForeignKey("user.user_id"), nullable=False
-    #     )
-    # )
 
     role: Role = Relationship(
         sa_relationship_kwargs={
-            "lazy": "selectin",
+            "lazy": "joined",
         }
     )
-    # creator: "User" = Relationship(
-    #     sa_relationship_kwargs={"primaryjoin": "User.created_by == User.user_id"}
-    # )
-    # updator: "User" = Relationship(
-    #     sa_relationship_kwargs={"primaryjoin": "User.updated_by == User.user_id"}
-    # )
 
 
 class Application(SQLModel, table=True):
@@ -307,13 +302,13 @@ class Application(SQLModel, table=True):
         )
     )
 
-    usecase: Usecase = Relationship(back_populates="applications")
-    application_type: "ApplicationType" = Relationship()
+    usecase: Usecase = Relationship(back_populates="applications", sa_relationship_kwargs={"lazy": "joined"})
+    application_type: "ApplicationType" = Relationship(sa_relationship_kwargs={"lazy": "joined"})
     creator: "User" = Relationship(
-        sa_relationship_kwargs={"primaryjoin": "Application.created_by == User.user_id"}
+        sa_relationship_kwargs={"primaryjoin": "Application.created_by == User.user_id", "lazy": "joined"}
     )
     updator: "User" = Relationship(
-        sa_relationship_kwargs={"primaryjoin": "Application.updated_by == User.user_id"}
+        sa_relationship_kwargs={"primaryjoin": "Application.updated_by == User.user_id", "lazy": "joined"}
     )
 
 
@@ -351,7 +346,7 @@ class ApplicationType(SQLModel, table=True):
     document_type_associations: List["ApplicationTypeDocumentTypeAssociation"] = (
         Relationship(
             back_populates="application_type",
-            sa_relationship_kwargs={"cascade": "all ,delete-orphan"},
+            sa_relationship_kwargs={"cascade": "all ,delete-orphan", "lazy": "selectin"},
         )
     )
 
@@ -380,7 +375,7 @@ class Document(SQLModel, table=True):
         max_length=50, sa_column=Column(String(50), nullable=False)
     )
     url: str = Field(sa_column=Column(String()))
-    size: bytes = Field(sa_column=Column(BigInteger, nullable=False))
+    size: int = Field(sa_column=Column(Integer, nullable=False))
     # name: str = Field(max_length=255, sa_column=Column(String(255)))
     created_at: datetime = Field(
         default_factory=datetime.now, sa_column=Column(TIMESTAMP(timezone=True))
@@ -407,25 +402,9 @@ class DocumentType(SQLModel, table=True):
     )
     name: str = Field(max_length=255, sa_column=Column(String(255), nullable=False))
     category: str = Field(max_length=200, sa_column=Column(String(200), nullable=False))
-    # created_at: datetime = Field(
-    #     default_factory=datetime.now, sa_column=Column(TIMESTAMP(timezone=True))
-    # )
-    # updated_at: datetime = Field(
-    #     default_factory=datetime.now, sa_column=Column(TIMESTAMP(timezone=True))
-    # )
-    # created_by: UUID = Field(
-    #     sa_column=Column(
-    #         SqlUUID(as_uuid=True), ForeignKey("user.user_id"), nullable=False
-    #     )
-    # )
-    # updated_by: UUID = Field(
-    #     sa_column=Column(
-    #         SqlUUID(as_uuid=True), ForeignKey("user.user_id"), nullable=False
-    #     )
-    # )
 
     application_associations: List["ApplicationTypeDocumentTypeAssociation"] = (
-        Relationship(sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+        Relationship(sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"})
     )
 
 
@@ -443,10 +422,6 @@ class AuditLog(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=datetime.now, sa_column=Column(TIMESTAMP(timezone=True))
     )
-    # target_table: TargetTableEnum = Field(sa_column=SqlEnum(TargetTableEnum))
-
-    # org: Org = Relationship()
-    # actor: User = Relationship()
 
 
 class ApplicationTypeDocumentTypeAssociation(SQLModel, table=True):
@@ -499,11 +474,25 @@ class ApplicationTypeDocumentTypeAssociation(SQLModel, table=True):
     application_type: ApplicationType = Relationship(
         back_populates="document_type_associations",
         sa_relationship_kwargs={
-            "lazy": "selectin"
+            "lazy": "joined"
         }
     )
     document_type: DocumentType = Relationship(
         sa_relationship_kwargs={
-            "lazy": "selectin"
+            "lazy": "joined"
         }
     )
+
+    def to_dict(self) -> dict:
+        """
+        Convert the association to a dictionary.
+
+        Returns:
+            dict: A dictionary representation of the association.
+        """
+        return {
+            "id": self.application_type_document_type_association_id,
+            "document_type": self.document_type.name,
+            "document_category": self.document_type.category,
+            "is_optional": self.is_optional,
+        }

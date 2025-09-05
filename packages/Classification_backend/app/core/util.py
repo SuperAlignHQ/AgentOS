@@ -1,6 +1,6 @@
 from typing import Optional
 from uuid import UUID
-from fastapi import Depends
+from fastapi import Depends, UploadFile
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -14,6 +14,8 @@ from app.core.logging_config import logger
 from app.db.models import (
     ActionTypeEnum,
     ApplicationType,
+    DocumentType,
+    FileFormat,
     Org,
     OrgMember,
     Role,
@@ -22,6 +24,8 @@ from app.db.models import (
     User,
 )
 from app.services.user_service import APP_ADMIN
+
+MAX_FILE_SIZE = 50 * 1024 * 1024
 
 
 async def get_db_session() -> AsyncSession:
@@ -115,14 +119,15 @@ async def validate_application_type(
     Validate application type
     """
     try:
-        application_type = await db.exec(
+        application_type_record = await db.exec(
             select(ApplicationType).where(
                 ApplicationType.application_type_code == application_type
             )
         )
-        if not application_type:
+        application_type_record = application_type_record.first()
+        if not application_type_record:
             raise ValidationException(message="Application type does not exist")
-        return application_type.scalar_one()
+        return application_type_record
     except ValidationException as e:
         logger.error(f"Failed to validate application type: {str(e)}")
         raise e
@@ -132,3 +137,38 @@ async def validate_application_type(
     except Exception as e:
         logger.error(f"Failed to validate application type: {str(e)}")
         raise e
+
+
+async def transform_doc_types(db: AsyncSession) -> dict:
+    """
+    Get transformed document types
+    """
+    try:
+        doc_types = await db.exec(select(DocumentType))
+        transformed_doc_types = {}
+        for doc_type in doc_types:
+            key = f"{doc_type.category}_$_{doc_type.name}"
+            transformed_doc_types[key] = doc_type
+        return transformed_doc_types
+    except Exception as e:
+        logger.error(f"Error in transformed_doc_types: {str(e)}", exc_info=True)
+        raise DatabaseException(f"Failed to transform document types: {str(e)}")
+
+
+def validate_file(file: UploadFile) -> None:
+    """
+    Validate file upload
+    """
+    if not file.filename:
+        raise ValidationException(message="File name is required")
+    if not file.content_type:
+        raise ValidationException(message="File content type is required")
+
+    name_split = file.filename.split(".")
+    if len(name_split) < 2:
+        raise ValidationException(message="File name should not contain dot except for extension")
+
+    FileFormat(name_split[-1])
+
+    if file.size > MAX_FILE_SIZE:
+        raise ValidationException(message="File size should be less than 50MB")

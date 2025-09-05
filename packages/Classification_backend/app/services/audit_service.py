@@ -1,4 +1,4 @@
-from sqlmodel import func, select
+from sqlmodel import col, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.exception_handler import DatabaseException
@@ -36,7 +36,10 @@ class AuditService:
         """
         try:
             query = select(AuditLog).where(
-                AuditLog.org_id == org.org_id or AuditLog.org_id is None
+                or_(
+                    AuditLog.org_id == org.org_id,
+                    col(AuditLog.org_id).is_(None)
+                )
             )
             query = query.offset((pagination.page - 1) * pagination.page_size)
             query = query.limit(pagination.page_size)
