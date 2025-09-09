@@ -288,37 +288,43 @@ class ApplicationService:
         """
         Build ocr request
         """
-        from app.core.config_manager import ConfigManager
-        settings = ConfigManager.get_instance().settings
+        try:
+            from app.core.config_manager import ConfigManager
+            settings = ConfigManager.get_instance().settings
 
-        # get all document types
-        document_types = await db.exec(select(DocumentType))
-        document_types = document_types.all()
+            # get all document types
+            document_types = await db.exec(select(DocumentType))
+            document_types = document_types.all()
 
-        request_data["document_types"] = [doc_type.model_dump() for doc_type in document_types]
-        request_data["associations"] = [assoc.to_dict() for assoc in associations]
+            request_data["document_types"] = [doc_type.model_dump() for doc_type in document_types]
+            request_data["associations"] = [assoc.to_dict() for assoc in associations]
 
-        # build a post request for sending to ocr endpoint url which include files and request_data in body using httpx
-        ocr_request_body = {
-            "file": file,
-            "application_details": request_data
-        }
+            # build a post request for sending to ocr endpoint url which include files and request_data in body using httpx
+            ocr_request_body = {
+                "file": file,
+                "application_details": request_data
+            }
 
-        # build ocr request
+            # build ocr request
 
-        with httpx.AsyncClient() as client:
-            response = await client.post(
-                settings.OCR_CLASSIFICATION_ENDPOINT,
-                data=request_data,
-                file=file,
-                headers={
-                    # "Authorization": f"Bearer {self.ocr_api_key}",
-                    "Content-Type": "multipart/form-data",
-                },
-                timeout=10
-            )
+            with httpx.AsyncClient() as client:
+                response = await client.post(
+                    settings.OCR_CLASSIFICATION_ENDPOINT,
+                    data=request_data,
+                    file=file,
+                    headers={
+                        # "Authorization": f"Bearer {self.ocr_api_key}",
+                        "Content-Type": "multipart/form-data",
+                    },
+                    timeout=10
+                )
 
-        return response
+                return response.json()
+
+            return {}
+        except Exception as e:
+            logger.error(f"Error in build_ocr_request: {str(e)}", exc_info=True)
+            raise DatabaseException(f"Failed to build ocr request: {str(e)}")
 
     async def update_application(self, org: Org, usecase: Usecase, application_id: str, data: UpdateApplicationRequest, db: AsyncSession) -> Application:
         """Update an existing Application"""
