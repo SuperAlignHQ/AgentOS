@@ -193,7 +193,7 @@ async def analyze(
             logger.exception("Cleanup failed for file %s", fname)
 
     # Now compute results for each required document (strict both category & type)
-    classification_results = []
+    classification_results = {}
     overall_ok = True
 
     # helper to check presence in classified_docs
@@ -214,22 +214,18 @@ async def analyze(
         is_opt = bool(r.get("is_optional", False))
 
         present, matched_filename = _is_present(req_cat, req_typ)
-        if not present and not is_opt:
-            overall_ok = False
+        if not present:
+            continue
 
         reason = f"{req_typ} is present" if present else f"{req_typ} is missing"
 
-        entry = {
+        classification_results = {
             "document_category": req_cat,
             "document_type": req_typ,
             "optional": is_opt,
             "result": present,
             "reason": reason
         }
-        if present and matched_filename:
-            entry["matched_filename"] = matched_filename
-
-        classification_results.append(entry)
 
     return JSONResponse({
         "Application_id": data.get("Application_id"),

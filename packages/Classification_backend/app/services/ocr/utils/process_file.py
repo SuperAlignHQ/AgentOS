@@ -9,9 +9,6 @@ from .logger import setup_logger
 import pdf2image
 from PIL import Image
 
-# Ensure tempdir is set (change if needed)
-os.environ["TMPDIR"] = "D:/temp"
-tempfile.tempdir = "D:/temp"
 
 logger = setup_logger(__name__)
 
@@ -62,7 +59,7 @@ def save_upload_to_temp(upload_file: UploadFile, tmp_dir: Optional[str] = None,
     Save uploaded file to a temporary folder (with size limit).
     Returns full path.
     """
-    base_dir = tmp_dir or tempfile.mkdtemp()
+    base_dir = tempfile.mkdtemp()
     os.makedirs(base_dir, exist_ok=True)
 
     _, ext = os.path.splitext(upload_file.filename or "")
