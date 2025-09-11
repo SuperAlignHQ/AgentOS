@@ -265,7 +265,7 @@ class ApplicationService:
             db.add_all(logs)
             await db.commit()
 
-            audit_service.create_audit_log(
+            await audit_service.create_audit_log(
                 db,
                 AuditLog(
                     change_type=ActionTypeEnum.CREATE,
@@ -313,12 +313,19 @@ class ApplicationService:
                     settings.OCR_CLASSIFICATION_ENDPOINT,
                     data={"payload": json.dumps(payload)},
                     files={"file": (file.filename, file.file, file.content_type)},
+                    timeout=settings.OCR_TIMEOUT
                 )
                 return response.json()
             finally:
                 await client.aclose()
 
             return {}
+        except httpx.ReadTimeout:
+            raise DatabaseException("Failed to build ocr request: API Timeout")
+        except httpx.ConnectTimeout:
+            raise DatabaseException("Failed to build ocr request: Connection Timeout")
+        except httpx.TimeoutException as e:
+            raise DatabaseException(f"Failed to build ocr request: Timeout Error: {str(e)}")
         except Exception as e:
             logger.error(f"Error in build_ocr_request: {str(e)}", exc_info=True)
             raise DatabaseException(f"Failed to build ocr request: {str(e)}")
