@@ -270,10 +270,11 @@ class OrgService:
                 raise NotFoundException(f"User with id {user_id} not found")
 
             org_member_db = await db.exec(select(OrgMember).where(OrgMember.org_id == org.org_id, OrgMember.user_id == user_id))
-            if not org_member_db.first():
+            org_member_db = org_member_db.first()
+            if not org_member_db:
                 raise NotFoundException(f"User with id {user_id} is not a member of the organisation")
             
-            await db.delete(org_member_db.first())
+            await db.delete(org_member_db)
             await db.commit()
 
             from app.core.config_manager import ConfigManager
@@ -286,7 +287,7 @@ class OrgService:
                     target_name=TargetEnum.ORG_MEMBER,
                     org_id=org.org_id,
                     actor_id=user.user_id,
-                    target_id=org_member_db.first().org_member_id,
+                    target_id=org_member_db.org_member_id,
                 )
             )
             

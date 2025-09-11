@@ -407,6 +407,18 @@ class DocumentType(SQLModel, table=True):
         Relationship(sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"})
     )
 
+    def to_ocr_request(self) -> dict:
+        """
+        Convert the association to a dictionary.
+
+        Returns:
+            dict: A dictionary representation of the association.
+        """
+        return {
+            "document_type": self.name,
+            "document_category": self.category,
+        }
+
 
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
@@ -483,7 +495,7 @@ class ApplicationTypeDocumentTypeAssociation(SQLModel, table=True):
         }
     )
 
-    def to_dict(self) -> dict:
+    def to_ocr_request(self) -> dict:
         """
         Convert the association to a dictionary.
 
@@ -491,7 +503,6 @@ class ApplicationTypeDocumentTypeAssociation(SQLModel, table=True):
             dict: A dictionary representation of the association.
         """
         return {
-            "id": self.application_type_document_type_association_id,
             "document_type": self.document_type.name,
             "document_category": self.document_type.category,
             "is_optional": self.is_optional,

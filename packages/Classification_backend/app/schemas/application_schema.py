@@ -70,10 +70,8 @@ class CreateApplicationRequest(BaseModel):
 class CreateApplicationResponse(BaseModel):
     application_id: str
     application_type: str
-    status: ApplicationStatus
-    underwriter_status: UnderwriterStatus
-    underwriter_review: str
-    document_result: list
+    classification_overall_result: bool
+    classification_results: list
 
 
 class UpdateApplicationRequest(BaseModel):

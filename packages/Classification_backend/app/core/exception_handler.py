@@ -62,6 +62,12 @@ class DatabaseException(AppException):
     ):
         super().__init__(message, status.HTTP_500_INTERNAL_SERVER_ERROR, details)
 
+class InternalException(AppException):
+    def __init__(
+        self, message: str = "Internal Server Error", details: Optional[dict] = None
+    ):
+        super().__init__(message, status.HTTP_500_INTERNAL_SERVER_ERROR, details)
+
 
 class FileProcessingException(AppException):
     def __init__(

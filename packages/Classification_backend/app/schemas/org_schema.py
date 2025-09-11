@@ -1,14 +1,42 @@
+from fastapi.responses import JSONResponse
+import regex
 from datetime import datetime
 from typing import List
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import exc
 
+from app.core.exception_handler import AppException, ValidationException
 from app.db.models import Org, OrgMember
 from app.schemas.user_schema import UserResponse
 
 
 class CreateOrgRequest(BaseModel):
-    name: str
+    name: str = Field(...)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str):
+        try:
+            ans = regex.match(".*\S.*", value)
+            if not ans:
+                raise ValidationException("Name cannot contain only whitespaces")
+            updated_value = value.strip()
+
+            if not value:
+                raise ValidationException("Name cannot be empty")
+
+            return updated_value
+        except ValidationException as e:
+            JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": e.message,
+                "details": e.details,
+                "path": "",
+            },
+        )
 
 
 class UpdateOrgRequest(BaseModel):
