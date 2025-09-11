@@ -64,10 +64,10 @@ class ApplicationService:
             applications, total = await self.application_repo.get_all_applications(
                 org, usecase, pagination, db
             )
-            return GetApplicationsResponse(applications=applications, total=total)
+            return GetApplicationsResponse.from_orm(applications=applications, total=total)
         except Exception as e:
             logger.error(f"Error in get_all_applications: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to retrieve applications: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def get_application_by_underwriting_id(
         self, underwriting_id: str, db: AsyncSession
@@ -91,7 +91,7 @@ class ApplicationService:
             logger.error(
                 f"Error in get_application_by_underwriting_id: {str(e)}", exc_info=True
             )
-            raise DatabaseException(f"Failed to retrieve application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def delete_uploaded_documents(
         self, application_id: UUID, db: AsyncSession, org: Org, user: User
@@ -130,7 +130,7 @@ class ApplicationService:
             logger.error(
                 f"Error in delete_uploaded_documents: {str(e)}", exc_info=True
             )
-            raise DatabaseException(f"Failed to delete uploaded documents: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_application(
         self,
@@ -288,7 +288,7 @@ class ApplicationService:
             raise
         except Exception as e:
             logger.error(f"Error in create_application: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to create application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def build_ocr_request(self, file: UploadFile, payload: dict, usecase_id: UUID, application_type_id: UUID, associations: List[ApplicationTypeDocumentTypeAssociation], db: AsyncSession) -> None:
         """
@@ -354,4 +354,4 @@ class ApplicationService:
 
         except Exception as e:
             logger.error(f"Error in update_application: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to update application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
