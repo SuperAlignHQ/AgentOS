@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     POOL_TIMEOUT: int = 30
     OCR_CLASSIFICATION_ENDPOINT: str = ""
     DEBUG: bool = False
+    GOOGLE_CLOUD_PROJECT: str = ""
+    GOOGLE_CLOUD_LOCATION: str = ""
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
 
     model_config = SettingsConfigDict(env_file=".env")
 

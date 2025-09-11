@@ -1,3 +1,4 @@
+import json
 import httpx
 from typing import List, Optional
 from uuid import UUID, uuid4
@@ -10,6 +11,7 @@ from app.core.exception_handler import (
     ConflictException,
     DatabaseException,
     FileProcessingException,
+    InternalException,
     NotFoundException,
     ValidationException,
 )
@@ -198,7 +200,13 @@ class ApplicationService:
 
             # build ocr request
             # send ocr request
-            ocr_response = await self.build_ocr_request(file, {"application_id": application.application_id, "application_type": application_type.application_type_code}, usecase.usecase_id, application_type.application_type_id, associations, db)
+            ocr_response = await self.build_ocr_request(file, {"Application_id": application.underwriting_application_id, "Application_type": application_type.application_type_code}, usecase.usecase_id, application_type.application_type_id, associations, db)
+
+            if not isinstance(ocr_response, dict):
+                raise InternalException(ocr_response)
+
+            if ocr_response.get("detail"):
+                raise InternalException(message=ocr_response.get("detail"))
 
             transformed_doc_types = await transform_doc_types(db)
             
@@ -272,10 +280,8 @@ class ApplicationService:
             return CreateApplicationResponse(
                 application_id=application.underwriting_application_id,
                 application_type=application.application_type.application_type_code,
-                status=application.status,
-                underwriter_status=application.underwriter_status,
-                underwriter_review=application.underwriter_review if application.underwriter_review else "",
-                document_result=application.document_result,
+                classification_overall_result=True if application.status == ApplicationStatus.APPROVED else False,
+                classification_results=application.document_result,
             )
 
         except (BadRequestException, ConflictException, ValidationException):
@@ -284,7 +290,7 @@ class ApplicationService:
             logger.error(f"Error in create_application: {str(e)}", exc_info=True)
             raise DatabaseException(f"Failed to create application: {str(e)}")
 
-    async def build_ocr_request(self, file: UploadFile, request_data: dict, usecase_id: UUID, application_type_id: UUID, associations: List[ApplicationTypeDocumentTypeAssociation], db: AsyncSession) -> None:
+    async def build_ocr_request(self, file: UploadFile, payload: dict, usecase_id: UUID, application_type_id: UUID, associations: List[ApplicationTypeDocumentTypeAssociation], db: AsyncSession) -> None:
         """
         Build ocr request
         """
@@ -296,30 +302,21 @@ class ApplicationService:
             document_types = await db.exec(select(DocumentType))
             document_types = document_types.all()
 
-            request_data["document_types"] = [doc_type.model_dump() for doc_type in document_types]
-            request_data["associations"] = [assoc.to_dict() for assoc in associations]
-
-            # build a post request for sending to ocr endpoint url which include files and request_data in body using httpx
-            ocr_request_body = {
-                "file": file,
-                "application_details": request_data
-            }
+            payload["total_list_of_documents"] = [doc_type.to_ocr_request() for doc_type in document_types]
+            payload["required_documents"] = [assoc.to_ocr_request() for assoc in associations]
 
             # build ocr request
 
-            with httpx.AsyncClient() as client:
+            client = httpx.AsyncClient()
+            try:
                 response = await client.post(
                     settings.OCR_CLASSIFICATION_ENDPOINT,
-                    data=request_data,
-                    file=file,
-                    headers={
-                        # "Authorization": f"Bearer {self.ocr_api_key}",
-                        "Content-Type": "multipart/form-data",
-                    },
-                    timeout=10
+                    data={"payload": json.dumps(payload)},
+                    files={"file": (file.filename, file.file, file.content_type)},
                 )
-
                 return response.json()
+            finally:
+                await client.aclose()
 
             return {}
         except Exception as e:
