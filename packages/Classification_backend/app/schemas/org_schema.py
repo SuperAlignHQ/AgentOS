@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import exc
 
-from app.core.exception_handler import AppException, ValidationException
+from app.core.exception_handler import AppException, BadRequestException, ValidationException
 from app.db.models import Org, OrgMember
 from app.schemas.user_schema import UserResponse
 
@@ -18,7 +18,7 @@ class CreateOrgRequest(BaseModel):
     @classmethod
     def validate_name(cls, value: str):
         try:
-            ans = regex.match(".*\S.*", value)
+            ans = regex.match(r".*\S.*", value)
             if not ans:
                 raise ValidationException("Name cannot contain only whitespaces")
             updated_value = value.strip()
@@ -28,15 +28,10 @@ class CreateOrgRequest(BaseModel):
 
             return updated_value
         except ValidationException as e:
-            JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": e.message,
-                "details": e.details,
-                "path": "",
-            },
-        )
+            raise BadRequestException(
+                message=e.message,
+                details=e.details,
+            )
 
 
 class UpdateOrgRequest(BaseModel):
@@ -46,7 +41,7 @@ class UpdateOrgRequest(BaseModel):
     @classmethod
     def validate_name(cls, value: str):
         try:
-            ans = regex.match(".*\S.*", value)
+            ans = regex.match(r".*\S.*", value)
             if not ans:
                 raise ValidationException("Name cannot contain only whitespaces")
             updated_value = value.strip()
@@ -56,15 +51,10 @@ class UpdateOrgRequest(BaseModel):
 
             return updated_value
         except ValidationException as e:
-            JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": e.message,
-                "details": e.details,
-                "path": "",
-            },
-        )
+            raise BadRequestException(
+                message=e.message,
+                details=e.details,
+            )
 
 
 class OrgMemberResponse(BaseModel):

@@ -2,7 +2,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 import regex
 
-from app.core.exception_handler import ValidationException
+from app.core.exception_handler import BadRequestException, ValidationException
 
 class CreateUsecaseRequest(BaseModel):
     name: str
@@ -11,7 +11,7 @@ class CreateUsecaseRequest(BaseModel):
     @classmethod
     def validate_name(cls, value: str):
         try:
-            ans = regex.match(".*\S.*", value)
+            ans = regex.match(r".*\S.*", value)
             if not ans:
                 raise ValidationException("Name cannot contain only whitespaces")
             updated_value = value.strip()
@@ -21,15 +21,10 @@ class CreateUsecaseRequest(BaseModel):
 
             return updated_value
         except ValidationException as e:
-            JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": e.message,
-                "details": e.details,
-                "path": "",
-            },
-        )
+            raise BadRequestException(
+                message=e.message,
+                details=e.details,
+            )
 
 
 class UpdateUsecaseRequest(BaseModel):
@@ -39,7 +34,7 @@ class UpdateUsecaseRequest(BaseModel):
     @classmethod
     def validate_name(cls, value: str):
         try:
-            ans = regex.match(".*\S.*", value)
+            ans = regex.match(r".*\S.*", value)
             if not ans:
                 raise ValidationException("Name cannot contain only whitespaces")
             updated_value = value.strip()
@@ -49,12 +44,7 @@ class UpdateUsecaseRequest(BaseModel):
 
             return updated_value
         except ValidationException as e:
-            JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": e.message,
-                "details": e.details,
-                "path": "",
-            },
-        )
+            raise BadRequestException(
+                message=e.message,
+                details=e.details,
+            )
