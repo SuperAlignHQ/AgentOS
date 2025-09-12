@@ -105,7 +105,7 @@ class ConfigService:
         except Exception as e:
             logger.error(f"Error in create_application_type: {str(e)}", exc_info=True)
             await db.rollback()
-            raise DatabaseException(f"Failed to create application type: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def get_doc_type(
         self, doc_type: str, category: str, db: AsyncSession
@@ -124,7 +124,7 @@ class ConfigService:
             return None
         except Exception as e:
             logger.error(f"Error in get_doc_type: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to get document type: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_doc_type(
         self, doc_type: str, category: str, user: User, db: AsyncSession
@@ -146,7 +146,7 @@ class ConfigService:
         except Exception as e:
             logger.error(f"Error in create_doc_type: {str(e)}", exc_info=True)
             await db.rollback()
-            raise DatabaseException(f"Failed to create document type: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_association_model(
         self,
@@ -180,7 +180,7 @@ class ConfigService:
             return config
         except Exception as e:
             logger.error(f"Error in create_association_model: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to create association model: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def get_associations_for_application_type(
         self, application_type_id: UUID, usecase_id: UUID, db: AsyncSession
@@ -203,7 +203,7 @@ class ConfigService:
                 exc_info=True
             )
             raise DatabaseException(
-                f"Failed to get associations for application type: {str(e)}"
+                f"{str(e)}"
             )
 
     async def update_association(
@@ -297,7 +297,7 @@ class ConfigService:
             return create_associations, update_associations, logs
         except Exception as e:
             logger.error(f"Error in update_association: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to update association: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_association(
         self,
@@ -354,7 +354,7 @@ class ConfigService:
             return associations, logs
         except Exception as e:
             logger.error(f"Error in create_association: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to create association: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_configuration(
         self,
@@ -411,7 +411,7 @@ class ConfigService:
         except Exception as e:
             logger.error(f"Error in create_configuration: {str(e)}", exc_info=True)
             await db.rollback()
-            raise DatabaseException(f"Failed to create configuration: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
 
     async def delete_configuration(
@@ -497,7 +497,7 @@ class ConfigService:
         except Exception as e:
             logger.error(f"Error in delete_configuration: {str(e)}", exc_info=True)
             await db.rollback()
-            raise DatabaseException(f"Failed to delete configuration: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def get_configuration(
         self,
@@ -560,4 +560,4 @@ class ConfigService:
             ]
         except Exception as e:
             logger.error(f"Error in get_configuration: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to get configuration: {str(e)}")
+            raise DatabaseException(f"{str(e)}")

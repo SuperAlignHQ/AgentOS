@@ -16,7 +16,7 @@ class ApplicationResponse(BaseModel):
     status: ApplicationStatus
     underwriter_status: UnderwriterStatus
     underwriter_review: str | None = None
-    document_result: Optional[Dict[str, Any]] = None
+    document_result: Optional[List[Dict[str, Any]]] = None
     created_at: datetime
     updated_at: datetime
     created_by: str
@@ -28,7 +28,7 @@ class ApplicationResponse(BaseModel):
         Create a new ApplicationResponse from an Application model
         """ 
         return cls(
-            application_id=application.application_type_id,
+            application_id=application.underwriting_application_id,
             application_type=application.application_type.application_type_code,
             status=application.status,
             underwriter_status=application.underwriter_status,

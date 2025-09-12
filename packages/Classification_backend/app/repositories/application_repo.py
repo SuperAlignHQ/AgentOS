@@ -46,7 +46,7 @@ class ApplicationRepo:
             return applications, total.first()
         except Exception as e:
             logger.error(f"Error in get_all_applications: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to retrieve applications: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_application(
         self,
@@ -98,4 +98,4 @@ class ApplicationRepo:
         except Exception as e:
             logger.error(f"Error in create_application: {str(e)}", exc_info=True)
             await db.rollback()
-            raise DatabaseException(f"Failed to create application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
