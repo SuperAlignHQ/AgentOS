@@ -192,10 +192,15 @@ async def analyze(
             )
 
             batch_results=[]
+            overall_policy_check="Pass"
             if matched_required:
                 policies = fetch_policies(typ, policy_df)
                 if policies:
                     batch_results = await validate_policies_from_images(document_images, policies)
+                    for policy_dict in batch_results:
+                        if policy_dict.get("validation_result")=="Fail":
+                           overall_policy_check="Fail"
+                           
                     
 
             classified_docs.append({
@@ -205,7 +210,8 @@ async def analyze(
                 "document_category": cat,
                 "document_type": typ,
                 "note": note,
-                "policy_validation_results": batch_results 
+                "policy_validation_results": batch_results ,
+                "final_policy_validation_result":overall_policy_check
             })
 
         except HTTPException:
