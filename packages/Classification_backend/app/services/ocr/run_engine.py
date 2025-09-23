@@ -72,11 +72,21 @@ def fetch_policies(document_type: str, policy_df: pd.DataFrame) -> list[dict]:
         if name and rule:
             policies.append({"name": name, "rule": rule})
     return policies
+
+
 async def get_evaluated_fields(document_images:list,prompt:str)->dict:
-    
+        
         model = GenerativeModel(model_name=LLM_MODEL)
-        response = model.generate_content([prompt, *document_images],generation_config={"temperature":0.0})
+        text_part = Part.from_text(prompt)
+        image_parts = []
+        for p in document_images:
+            try:
+                image_parts.append(Part.from_image(Image.load_from_file(p)))
+            except Exception:
+                logger.exception("Failed loading image for LLM: %s", p)
+        response = model.generate_content([*image_parts, text_part],generation_config={"temperature":0.0})
         raw = response.text.strip()
+        
                 # --- 1️⃣  Remove markdown code fences like ```json ... ```  ---
         # Matches optional language tag after opening ```
         raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
@@ -95,7 +105,7 @@ async def get_evaluated_fields(document_images:list,prompt:str)->dict:
              return {}
         
 async def validate_policies_from_images(document_images: list, policies: list[dict],all_types:list) -> list:
-    print(len(document_images))
+    
     """
     Validate all policies together. 
     Returns dict: {policy_name: 'Yes'/'No'/'Error'}
@@ -119,7 +129,14 @@ async def validate_policies_from_images(document_images: list, policies: list[di
     #print(prompt)
     try:
         model = GenerativeModel(model_name=LLM_MODEL)
-        response = model.generate_content([prompt, *document_images],generation_config={"temperature":0.0})
+        text_part = Part.from_text(prompt)
+        image_parts = []
+        for p in document_images:
+            try:
+                image_parts.append(Part.from_image(Image.load_from_file(p)))
+            except Exception:
+                logger.exception("Failed loading image for LLM: %s", p)
+        response = model.generate_content([*image_parts, text_part],generation_config={"temperature":0.0})
         raw = response.text.strip()
                 # --- 1️⃣  Remove markdown code fences like ```json ... ```  ---
         # Matches optional language tag after opening ```
@@ -204,7 +221,7 @@ async def analyze(
             cat = getattr(analyzed.document_category_details, "document_category", "unknown")
             typ = getattr(analyzed.document_category_details, "document_type", "unknown")
             field_prompt=get_prompt_for_type(typ)
-            print(field_prompt)
+            
             all_types.append(typ)
             status = getattr(analyzed.document_category_details, "status", "classified")
             note = getattr(analyzed.document_category_details, "note", None)
