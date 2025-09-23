@@ -120,7 +120,7 @@ async def validate_policies_from_images(document_images: list, policies: list[di
                 entry = parsed.get(policy_name, {})
                 results.append({
                     "policy_name": policy_name,
-                    "validation_result": "Yes" if str(entry.get("result", "")).strip().lower() == "pass" else "Fail",
+                    "validation_result": "Pass" if str(entry.get("result", "")).strip().lower() == "pass" else "Fail",
                     "comment": entry.get("comment", "")
                 })
             return results
@@ -177,7 +177,7 @@ async def analyze(
             if not file_results_obj or not file_results_obj.properties.file_present or not file_results_obj.properties.page_paths:
                 raise HTTPException(status_code=400, detail=f"File {fname} empty or contains no pages")
 
-            analyzed = await asyncio.to_thread(analyze_document, file_results_obj, allowed_pairs)
+            analyzed = await asyncio.to_thread(analyze_document, file_results_obj,allowed_pairs)
             cat = getattr(analyzed.document_category_details, "document_category", "unknown")
             typ = getattr(analyzed.document_category_details, "document_type", "unknown")
             status = getattr(analyzed.document_category_details, "status", "classified")
@@ -191,7 +191,7 @@ async def analyze(
                 for r in required_list
             )
 
-            validation_results = []
+            batch_results=[]
             if matched_required:
                 policies = fetch_policies(typ, policy_df)
                 if policies:
@@ -205,7 +205,7 @@ async def analyze(
                 "document_category": cat,
                 "document_type": typ,
                 "note": note,
-                "policy_validation_results": batch_results
+                "policy_validation_results": batch_results 
             })
 
         except HTTPException:
