@@ -4,7 +4,7 @@ from schema_base import FileResults
 from utils.logger import setup_logger
 from analyzer.llm import DocumentLLM
 from documents.document_type.prompt import generate_document_type_prompt
-from documents.document_type.schema import DocumentCategoryAndType
+
 from typing import Optional, List, Tuple
 import difflib
 
@@ -64,7 +64,7 @@ def analyze_document(
             allowed_pairs_set.add((cat_n, typ_n))
             allowed_cats.append(cat_n)
             allowed_types.append(typ_n)
-    print(allowed_pairs_set)
+    
     document_llm = DocumentLLM()
     logger.info("Analyzing pages: %s", file_results.properties.page_paths)
     document_type_prompt=generate_document_type_prompt(allowed_pairs_set)

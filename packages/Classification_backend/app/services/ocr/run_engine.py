@@ -13,7 +13,7 @@ from utils.logger import setup_logger
 import vertexai
 from vertexai.generative_models import Part, Image, GenerativeModel
 import re
-
+from utils.field_prompts import get_prompt_for_type
 logger = setup_logger(__name__)
 
 project = os.getenv("GOOGLE_CLOUD_PROJECT")
@@ -73,7 +73,39 @@ def fetch_policies(document_type: str, policy_df: pd.DataFrame) -> list[dict]:
             policies.append({"name": name, "rule": rule})
     return policies
 
-async def validate_policies_from_images(document_images: list, policies: list[dict]) -> dict:
+
+async def get_evaluated_fields(document_images:list,prompt:str)->dict:
+        
+        model = GenerativeModel(model_name=LLM_MODEL)
+        text_part = Part.from_text(prompt)
+        image_parts = []
+        for p in document_images:
+            try:
+                image_parts.append(Part.from_image(Image.load_from_file(p)))
+            except Exception:
+                logger.exception("Failed loading image for LLM: %s", p)
+        response = model.generate_content([*image_parts, text_part],generation_config={"temperature":0.0})
+        raw = response.text.strip()
+        
+                # --- 1️⃣  Remove markdown code fences like ```json ... ```  ---
+        # Matches optional language tag after opening ```
+        raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
+        raw = re.sub(r'```$', '', raw)
+
+        # --- 2️⃣  Collapse any *real* newlines inside quoted strings ---
+        raw = re.sub(r'(".*?)(\n+)(.*?")',
+                    lambda m: m.group(1) + " " + m.group(3),
+                    raw,
+                    flags=re.DOTALL)
+        #print(raw)
+        try:
+            parsed = json.loads(raw)
+            return parsed
+        except:
+             return {}
+        
+async def validate_policies_from_images(document_images: list, policies: list[dict],all_types:list) -> list:
+    
     """
     Validate all policies together. 
     Returns dict: {policy_name: 'Yes'/'No'/'Error'}
@@ -87,17 +119,24 @@ async def validate_policies_from_images(document_images: list, policies: list[di
     )
 
     prompt = (
-    "You are given document images and a list of policies.\n"
+    f"You are given document images of following documents:{all_types}, and a list of policies. Examine the content of the images carefully, understand them, do not fabricate your own details,stick to what is written in the images. then Do check across all the document images, cross checking other document images also for some policies where need be.\n"
     "For each policy, return an object with keys result (Pass or Fail) and comment (short explanation). Return only a valid JSON object mapping policy names to these objects—no markdown, no back-ticks.\n"
     "Return **only** a valid JSON object — no markdown fences, no extra text, "
     "no quotes around the word JSON. Your response must start with '{' and end with '}'.\n\n"
     f"Policies:\n{policy_descriptions}"
 )
 
-
+    #print(prompt)
     try:
         model = GenerativeModel(model_name=LLM_MODEL)
-        response = model.generate_content([prompt, *document_images],generation_config={"temperature:0.0})
+        text_part = Part.from_text(prompt)
+        image_parts = []
+        for p in document_images:
+            try:
+                image_parts.append(Part.from_image(Image.load_from_file(p)))
+            except Exception:
+                logger.exception("Failed loading image for LLM: %s", p)
+        response = model.generate_content([*image_parts, text_part],generation_config={"temperature":0.0})
         raw = response.text.strip()
                 # --- 1️⃣  Remove markdown code fences like ```json ... ```  ---
         # Matches optional language tag after opening ```
@@ -109,7 +148,7 @@ async def validate_policies_from_images(document_images: list, policies: list[di
                     lambda m: m.group(1) + " " + m.group(3),
                     raw,
                     flags=re.DOTALL)
-        print(raw)
+        #print(raw)
         try:
             parsed = json.loads(raw)
             # Ensure all policy names are present
@@ -126,10 +165,10 @@ async def validate_policies_from_images(document_images: list, policies: list[di
             return results
         except Exception:
             logger.warning("Model output not valid JSON; falling back to No for all")
-            return {p['name']: "Error" for p in policies}
+            return ["Error"]
     except Exception as e:
         logger.exception(f"Policy batch validation error: {e}")
-        return {p['name']: "Error" for p in policies}
+        return ["Error"]
 
 
 # ----------------- FastAPI endpoint -----------------
@@ -166,7 +205,8 @@ async def analyze(
         policy_df = pd.read_excel(POLICY_FILE_PATH)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Policy file loading error: {e}")
-
+    all_document_images=[]
+    all_types=[]
     for file in files:
         fname = file.filename or "uploaded_file"
         saved_path = None
@@ -180,12 +220,18 @@ async def analyze(
             analyzed = await asyncio.to_thread(analyze_document, file_results_obj,allowed_pairs)
             cat = getattr(analyzed.document_category_details, "document_category", "unknown")
             typ = getattr(analyzed.document_category_details, "document_type", "unknown")
+            field_prompt=get_prompt_for_type(typ)
+            
+            all_types.append(typ)
             status = getattr(analyzed.document_category_details, "status", "classified")
             note = getattr(analyzed.document_category_details, "note", None)
             cat, typ = coerce_category_type_pair(cat, typ)
             print("category from llm after validation and coercing is",cat)
             print("type from llm after validation and coercing is",typ)
-            document_images = getattr(file_results_obj.properties, "page_paths", [])
+            document_images=getattr(file_results_obj.properties, "page_paths", [])
+            evaluated_fields=await get_evaluated_fields(document_images,field_prompt)
+            all_document_images.extend(document_images)
+            #print("length of images list after new doc added is ",len(document_images))
             matched_required = any(
                 _matches_required(r.get("document_category"), r.get("document_type"), cat, typ)
                 for r in required_list
@@ -196,7 +242,7 @@ async def analyze(
             if matched_required:
                 policies = fetch_policies(typ, policy_df)
                 if policies:
-                    batch_results = await validate_policies_from_images(document_images, policies)
+                    batch_results = await validate_policies_from_images(all_document_images, policies,all_types)
                     for policy_dict in batch_results:
                         if policy_dict.get("validation_result")=="Fail":
                            overall_policy_check="Fail"
@@ -210,6 +256,7 @@ async def analyze(
                 "document_category": cat,
                 "document_type": typ,
                 "note": note,
+                "evaluations":evaluated_fields,
                 "policy_validation_results": batch_results ,
                 "final_policy_validation_result":overall_policy_check
             })
