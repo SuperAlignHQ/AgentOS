@@ -97,7 +97,7 @@ async def validate_policies_from_images(document_images: list, policies: list[di
 
     try:
         model = GenerativeModel(model_name=LLM_MODEL)
-        response = model.generate_content([prompt, *document_images])
+        response = model.generate_content([prompt, *document_images],generation_config={"temperature:0.0})
         raw = response.text.strip()
                 # --- 1️⃣  Remove markdown code fences like ```json ... ```  ---
         # Matches optional language tag after opening ```
