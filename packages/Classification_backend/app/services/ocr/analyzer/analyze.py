@@ -3,7 +3,7 @@
 from schema_base import FileResults
 from utils.logger import setup_logger
 from analyzer.llm import DocumentLLM
-from documents.document_type.prompt import document_type_prompt
+from documents.document_type.prompt import generate_document_type_prompt
 from documents.document_type.schema import DocumentCategoryAndType
 from typing import Optional, List, Tuple
 import difflib
@@ -37,6 +37,7 @@ def _normalize_pair(
 
 def analyze_document(
     file_results: FileResults,
+    
     allowed_pairs: Optional[List[dict]] = None,
     stop_on_failure: bool = False
 ) -> Optional[FileResults]:
@@ -55,19 +56,18 @@ def analyze_document(
     if allowed_pairs:
         for p in allowed_pairs:
             try:
-                c = p.get("document_category")
-                t = p.get("document_type")
+                cat_n = p.get("document_category")
+                typ_n = p.get("document_type")
             except Exception:
                 continue
-            cat_n = _normalize_value(c)
-            typ_n = _normalize_value(t)
+            
             allowed_pairs_set.add((cat_n, typ_n))
             allowed_cats.append(cat_n)
             allowed_types.append(typ_n)
-
+    print(allowed_pairs_set)
     document_llm = DocumentLLM()
     logger.info("Analyzing pages: %s", file_results.properties.page_paths)
-
+    document_type_prompt=generate_document_type_prompt(allowed_pairs_set)
     response = document_llm.call_llm_api(
         prompt=document_type_prompt,
         image_path=file_results.properties.page_paths
@@ -87,10 +87,8 @@ def analyze_document(
 
     if parsed:
         try:
-            # Validate/coerce with Pydantic model
-            doc_cat_type = DocumentCategoryAndType.model_validate(parsed)
-            cat_raw = str(doc_cat_type.document_category)
-            typ_raw = str(doc_cat_type.document_type)
+            cat_raw = str(parsed.get("document_category", "unknown"))
+            typ_raw = str(parsed.get("document_type", "unknown"))
 
             # Normalize with fuzzy matching
             cat_n, typ_n = _normalize_pair(cat_raw, typ_raw, allowed_cats, allowed_types)
