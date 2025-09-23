@@ -5,9 +5,8 @@ from schema_base import StrEnumBase
 
 
 class DocumentCategoryEnum(StrEnumBase):
-    IDENTITY_VERIFICATION_DOCUMENT = "identity_verification_document"
-    BANK_STATEMENT = "bank_statement"
-    INCOME_DOCUMENT = "income_document"
+    IDENTITY_VERIFICATION_DOCUMENT = "id_proof"
+    INCOME_DOCUMENT = "income"
     EXPENDITURE = "expenditure"
     CREDIT_REPORT = "credit_report"
     OTHER = "other"
@@ -17,9 +16,8 @@ class DocumentCategoryEnum(StrEnumBase):
 class DocumentTypeEnum(StrEnumBase):
     PASSPORT = "passport"
     DRIVING_LICENSE = "driving_license"
-    NATIONAL_IDENTITY_CARD = "national_identity_card"
     BANK_STATEMENT = "bank_statement"
-    PAYSLIP = "payslip"
+    PAYSLIP = "pay_slip"
     P60 = "p60"
     CONTRACT_OF_EMPLOYMENT = "contract_of_employment"
     MARRIAGE_CERTIFICATE = "marriage_certificate"
@@ -42,7 +40,6 @@ CATEGORY_MAPPING = {
     "identity_document": DocumentCategoryEnum.IDENTITY_VERIFICATION_DOCUMENT.value,
     "identity_verification_document": DocumentCategoryEnum.IDENTITY_VERIFICATION_DOCUMENT.value,
     "expenditure": DocumentCategoryEnum.EXPENDITURE.value,
-    "bank statement": DocumentCategoryEnum.BANK_STATEMENT.value,
     "credit report": DocumentCategoryEnum.CREDIT_REPORT.value,
 }
 
