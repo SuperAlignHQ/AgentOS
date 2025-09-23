@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import Form
 from pydantic import BaseModel
 
-from app.db.models import Application, ApplicationStatus, UnderwriterStatus
+from app.db.models import Application, ApplicationStatus, DocumentCheckStatus, PolicyCheckStatus, SystemStatus, UnderwriterStatus
 
 
 class ApplicationResponse(BaseModel):
@@ -16,11 +16,16 @@ class ApplicationResponse(BaseModel):
     status: ApplicationStatus
     underwriter_status: UnderwriterStatus
     underwriter_review: str | None = None
+    overall_document_check_status: DocumentCheckStatus
     document_result: Optional[List[Dict[str, Any]]] = None
+    system_status: SystemStatus
+    policy_check: PolicyCheckStatus
+    policy_check_result: Optional[List[Dict[str, Any]]] = None
     created_at: datetime
     updated_at: datetime
     created_by: str
     updated_by: str
+    documents: List[Dict[str, Any]] = []
 
     @classmethod
     def from_orm(cls, application: Application):
@@ -31,9 +36,14 @@ class ApplicationResponse(BaseModel):
             application_id=application.underwriting_application_id,
             application_type=application.application_type.application_type_code,
             status=application.status,
+            overall_document_check_status=application.overall_document_check_status,
             underwriter_status=application.underwriter_status,
             underwriter_review=application.underwriter_review,
             document_result=application.document_result,
+            system_status=application.system_status,
+            policy_check=application.overall_policy_check_status,
+            policy_check_result=application.policy_check_result,
+            documents=[{"evaluations": document.evaluations, "url": document.url} for document in application.documents],
             created_at=application.created_at,
             updated_at=application.updated_at,
             created_by=application.creator.name,
@@ -65,6 +75,7 @@ class CreateApplicationRequest(BaseModel):
     """
     application_type: str = Form(...)
     application_id: str = Form(...)
+    # reason_code: str = Form(...)
 
 
 class CreateApplicationResponse(BaseModel):

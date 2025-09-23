@@ -116,7 +116,7 @@ async def create_application(
     org_id: UUID,
     usecase_id: UUID,
     data: str = Form(...),
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
     application_service: ApplicationService = Depends(get_application_service),
@@ -126,10 +126,10 @@ async def create_application(
         application_data = CreateApplicationRequest(**json.loads(data))
 
         # Validate file
-        if not file:
+        if not files:
             raise BadRequestException("File is required")
 
-        validate_file(file)
+        # validate_file(file)
 
         org_member = await validate_org_member(org_id, user, db)
         authorize_user(
@@ -147,7 +147,7 @@ async def create_application(
         validate_org_usecase(org, usecase)
 
         return await application_service.create_application(
-            org, usecase, application_data, file, user, db
+            org, usecase, application_data, user, db, files
         )
     except (NotFoundException, ValidationException, BadRequestException) as e:
         logger.error(f"Error in create_application: {str(e)}")
