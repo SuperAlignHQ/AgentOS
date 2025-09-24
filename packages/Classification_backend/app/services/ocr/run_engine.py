@@ -29,7 +29,7 @@ app = FastAPI()
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES))
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", DEFAULT_MAX_PDF_PAGES))
 FUZZY_MATCHING = os.getenv("FUZZY_MATCHING", "true").lower() in ("1", "true", "yes")
-POLICY_FILE_PATH = r"C:\Users\Manas Pati Tripathi\Downloads\policy_new.xlsx"
+POLICY_FILE_PATH = os.getenv("POLICY_FILE_PATH")
 LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash-001")
 
 
