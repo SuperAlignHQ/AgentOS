@@ -1,8 +1,10 @@
+from datetime import datetime
 import json
+import os
 import httpx
 from typing import List, Optional
 from uuid import UUID, uuid4
-from fastapi import UploadFile, requests
+from fastapi import File, UploadFile, requests
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,8 +18,8 @@ from app.core.exception_handler import (
     ValidationException,
 )
 from app.core.logging_config import logger
-from app.core.util import transform_doc_types, validate_application_type
-from app.db.models import ActionTypeEnum, Application, ApplicationStatus, ApplicationTypeDocumentTypeAssociation, AuditLog, Document, DocumentType, FileFormat, Org, TargetEnum, UnderwriterStatus, Usecase, User
+from app.core.util import UPLOAD_DIR, transform_doc_types, validate_application_type
+from app.db.models import ActionTypeEnum, Application, ApplicationStatus, ApplicationTypeDocumentTypeAssociation, AuditLog, Document, DocumentCheckStatus, DocumentType, FileFormat, Org, PolicyCheckStatus, SystemStatus, TargetEnum, UnderwriterStatus, Usecase, User
 from app.repositories.application_repo import ApplicationRepo
 from app.schemas.util import EmptyResponse, PaginationQuery
 from app.schemas.application_schema import (
@@ -64,10 +66,10 @@ class ApplicationService:
             applications, total = await self.application_repo.get_all_applications(
                 org, usecase, pagination, db
             )
-            return GetApplicationsResponse(applications=applications, total=total)
+            return GetApplicationsResponse.from_orm(applications=applications, total=total)
         except Exception as e:
             logger.error(f"Error in get_all_applications: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to retrieve applications: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def get_application_by_underwriting_id(
         self, underwriting_id: str, db: AsyncSession
@@ -91,7 +93,7 @@ class ApplicationService:
             logger.error(
                 f"Error in get_application_by_underwriting_id: {str(e)}", exc_info=True
             )
-            raise DatabaseException(f"Failed to retrieve application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def delete_uploaded_documents(
         self, application_id: UUID, db: AsyncSession, org: Org, user: User
@@ -130,16 +132,16 @@ class ApplicationService:
             logger.error(
                 f"Error in delete_uploaded_documents: {str(e)}", exc_info=True
             )
-            raise DatabaseException(f"Failed to delete uploaded documents: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_application(
         self,
         org: Org,
         usecase: Usecase,
         application_data: CreateApplicationRequest,
-        file: UploadFile,
         user: User,
         db: AsyncSession,
+        files: List[UploadFile],
     ) -> CreateApplicationResponse:
         """
         Create application
@@ -152,7 +154,7 @@ class ApplicationService:
             if not application_data.application_type:
                 raise BadRequestException("Application type is required")
 
-            if not file:
+            if not files:
                 raise BadRequestException("File is required")
 
             # Validate application data
@@ -178,15 +180,27 @@ class ApplicationService:
             # upload files to gcs, build document model and add unique id in filename for ocr
             # TODO: upload file to gcs
 
-            document_model = Document(
-                application_id=application.application_id,
-                format=FileFormat.get_file_format(file.filename.split(".")[-1]),
-                original_file_name=file.filename,
-                url="",
-                size=file.size,
-                created_by=user.user_id,
-                updated_by=user.user_id
-            )
+            document_model_file_map = {}
+            for file in files:
+
+                #save file to disk
+                file_disk_name = datetime.now().strftime("%Y%m%d%H%M%S") + "_" + file.filename
+                file_path = os.path.join(UPLOAD_DIR, file_disk_name)
+                with open(file_path, "wb") as f:
+                    f.write(await file.read())
+                
+                new_filename = f"{application.underwriting_application_id}_$_{file.filename}"
+                document_model = Document(
+                    application_id=application.application_id,
+                    format=FileFormat.get_file_format(file.filename.split(".")[-1]),
+                    original_file_name=file.filename,
+                    url= file_disk_name,
+                    size=file.size,
+                    created_by=user.user_id,
+                    updated_by=user.user_id
+                )
+                file.filename = new_filename
+                document_model_file_map[file.filename] = document_model
 
             # get all document application type associations for application type
             associations = await db.exec(
@@ -198,9 +212,7 @@ class ApplicationService:
                 )
             associations = associations.all()
 
-            # build ocr request
-            # send ocr request
-            ocr_response = await self.build_ocr_request(file, {"Application_id": application.underwriting_application_id, "Application_type": application_type.application_type_code}, usecase.usecase_id, application_type.application_type_id, associations, db)
+            ocr_response = await self.build_ocr_request(files, {"Application_id": application.underwriting_application_id, "Application_type": application_type.application_type_code}, usecase.usecase_id, application_type.application_type_id, associations, db)
 
             if not isinstance(ocr_response, dict):
                 raise InternalException(ocr_response)
@@ -211,51 +223,96 @@ class ApplicationService:
             transformed_doc_types = await transform_doc_types(db)
             
             classficiation_res = ocr_response.get("classification_results")
+            processed_files = ocr_response.get("files")
+
+            document_check_result = True
+            policy_check_result = True
 
             if classficiation_res:
-                doc_type = classficiation_res.get("document_type")
-                doc_category = classficiation_res.get("document_category")
+                for res in classficiation_res:
+                    if not res.get("result"):
+                        continue
 
-                key = f"{doc_category}_$_{doc_type}"
-                doc_type_model = None
-                if key in transformed_doc_types:
-                    doc_type_model = transformed_doc_types[key]
+                    doc_type = res.get("document_type")
+                    doc_category = res.get("document_category")
 
+                    key = f"{doc_category}_$_{doc_type}"
+                    doc_type_model = None
+                    if key in transformed_doc_types:
+                        doc_type_model = transformed_doc_types[key]
 
-                document_model.document_type_id = doc_type_model.document_type_id
-                db.add(document_model)
+                    doc_model = document_model_file_map.get(res.get("matched_filename"))
+                    if doc_model:
+                        doc_model.document_type_id = doc_type_model.document_type_id
 
-                log = AuditLog(
-                    change_type=ActionTypeEnum.CREATE,
-                    title="Document Created",
-                    target_name=TargetEnum.DOCUMENT,
-                    org_id=org.org_id,
-                    actor_id=user.user_id,
-                    target_id=document_model.document_id,
-                )
+                        db.add(doc_model)
 
-                logs.append(log)
+                    log = AuditLog(
+                        change_type=ActionTypeEnum.CREATE,
+                        title="Document Created",
+                        target_name=TargetEnum.DOCUMENT,
+                        org_id=org.org_id,
+                        actor_id=user.user_id,
+                        target_id=doc_model.document_id,
+                    )
 
-                doc_result = list(filter(lambda result: result["document_type"] == doc_type and result["document_category"] == doc_category, application.document_result)) if application.document_result else []
+                    logs.append(log)
 
-                if doc_result:
-                    doc_result[0]["result"] = classficiation_res.get("result")
-                    doc_result[0]["reason"] = classficiation_res.get("reason")
-                    flag_modified(application, "document_result")
-               
+                    doc_result = list(filter(lambda result: result["document_type"] == doc_type and result["document_category"] == doc_category, application.document_result)) if application.document_result else []
+
+                    if doc_result:
+                        doc_result[0]["result"] = res.get("result")
+                        doc_result[0]["reason"] = res.get("reason")
+                        flag_modified(application, "document_result")
+
                 # calculate overall status of application
-                result = True
-                for doc_result in application.document_result:
-                    if not doc_result.get("optional") and doc_result.get("result"):
-                        result = result and doc_result.get("result")
-                    elif doc_result.get("optional"):
-                        result = result and True
-                    else:
-                        result = False
-                application.status = ApplicationStatus.APPROVED if result else ApplicationStatus.DECLINED
 
-            application.underwriter_status = application.underwriter_status or UnderwriterStatus.PENDING
+                for doc_result in application.document_result:
+                    if doc_result.get("result"):
+                        document_check_result = document_check_result and doc_result.get("result")
+                    else:
+                        document_check_result = False
+
+                    #######-------COMMENT ABOVE CODE & KEEP BELOW CODE
+
+                    # if not doc_result.get("optional") and doc_result.get("result"):
+                    #     document_check_result = document_check_result and doc_result.get("result")
+                    # elif doc_result.get("optional"):
+                    #     document_check_result = document_check_result and True
+                    # else:
+                    #     document_check_result = False
+
+
+                    #########----------------
+                application.overall_document_check_status = DocumentCheckStatus.PASS if document_check_result else DocumentCheckStatus.FAIL
+
+            policy_result = []
+            if processed_files:
+                for file in processed_files:
+                    if file.get("policy_validation_results"):
+                        policy_result.extend(list(map(lambda x: {"doc_type": file.get("document_type"), **x}, file.get("policy_validation_results"))))
+                        policy_res_status = map(lambda x: True if x.get("result") == "Yes" else False, file.get("policy_validation_results"))
+                        if all(policy_res_status):
+                            policy_check_result = policy_check_result and True
+                        else:
+                            policy_check_result = False
+
+                    # get the evaluated field values from the response
+                    if file.get("evaluations"):
+                        docu_model = document_model_file_map[file.get("filename")]
+                        if docu_model:
+                            docu_model.evaluations = file.get("evaluations")
+                
+
+            application.overall_policy_check_status = PolicyCheckStatus.PASS if policy_check_result else PolicyCheckStatus.FAIL
+            application.policy_check_result = policy_result
+            application.underwriter_status = application.underwriter_status or UnderwriterStatus.NEW
             application.underwriter_review = application.underwriter_review or ""
+
+            if document_check_result and policy_check_result:
+                application.system_status = SystemStatus.APPROVED
+            else:
+                application.system_status = SystemStatus.DECLINED
             
             await db.commit()
             await db.refresh(application)
@@ -285,12 +342,14 @@ class ApplicationService:
             )
 
         except (BadRequestException, ConflictException, ValidationException):
+            await db.rollback()
             raise
         except Exception as e:
+            await db.rollback()
             logger.error(f"Error in create_application: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to create application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
-    async def build_ocr_request(self, file: UploadFile, payload: dict, usecase_id: UUID, application_type_id: UUID, associations: List[ApplicationTypeDocumentTypeAssociation], db: AsyncSession) -> None:
+    async def build_ocr_request(self, files: List[UploadFile], payload: dict, usecase_id: UUID, application_type_id: UUID, associations: List[ApplicationTypeDocumentTypeAssociation], db: AsyncSession) -> None:
         """
         Build ocr request
         """
@@ -312,7 +371,7 @@ class ApplicationService:
                 response = await client.post(
                     settings.OCR_CLASSIFICATION_ENDPOINT,
                     data={"payload": json.dumps(payload)},
-                    files={"file": (file.filename, file.file, file.content_type)},
+                    files=[("files", (file.filename, file.file, file.content_type)) for file in files],
                     timeout=settings.OCR_TIMEOUT
                 )
                 return response.json()
@@ -354,4 +413,4 @@ class ApplicationService:
 
         except Exception as e:
             logger.error(f"Error in update_application: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to update application: {str(e)}")
+            raise DatabaseException(f"{str(e)}")

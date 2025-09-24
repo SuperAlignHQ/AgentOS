@@ -25,7 +25,8 @@ from app.db.models import (
 )
 from app.services.user_service import APP_ADMIN
 
-MAX_FILE_SIZE = 50 * 1024 * 1024
+MAX_FILE_SIZE = 50 * 1024 * 1024 
+UPLOAD_DIR = "documents"
 
 
 async def get_db_session() -> AsyncSession:

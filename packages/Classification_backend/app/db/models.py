@@ -27,6 +27,7 @@ class UnderwriterStatus(str, Enum):
     DECLINED = "declined"
     SUSPEND = "suspended"
     PENDING = "pending"
+    NEW = "new"
 
 
 class FileFormat(str, Enum):
@@ -82,6 +83,20 @@ class TargetTableEnum(str, Enum):
 class RoleType(str, Enum):
     ORG = "org"
     APP = "app"
+
+class DocumentCheckStatus(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+
+
+class PolicyCheckStatus(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+
+class SystemStatus(str, Enum):
+    APPROVED = "approved"
+    DECLINED = "declined"
+    NEEDS_REVIEW = "needs_review"
 
 
 class Org(SQLModel, table=True):
@@ -281,7 +296,7 @@ class Application(SQLModel, table=True):
     )
     underwriter_review: str = Field(max_length=2048, sa_column=Column(String(2048)))
     document_result: Dict[str, Any] = Field(
-        default_factory=dict, sa_column=Column(JSONB)
+        default_factory=list, sa_column=Column(JSONB)
     )
     created_at: datetime = Field(
         default_factory=datetime.now,
@@ -301,7 +316,24 @@ class Application(SQLModel, table=True):
             SqlUUID(as_uuid=True), ForeignKey("user.user_id"), nullable=False
         )
     )
+    overall_document_check_status: DocumentCheckStatus = Field(
+        default=DocumentCheckStatus.FAIL, sa_column=SqlEnum(DocumentCheckStatus)
+    )
+    overall_policy_check_status: PolicyCheckStatus = Field(
+        default=PolicyCheckStatus.FAIL, sa_column=SqlEnum(PolicyCheckStatus)
+    )
+    policy_check_result: Dict[str, Any] = Field(
+        default_factory=list, sa_column=Column(JSONB)
+    )
+    system_status: SystemStatus = Field(
+        default=SystemStatus.DECLINED, sa_column=SqlEnum(SystemStatus)
+    )
 
+    documents: List["Document"] = Relationship(
+        sa_relationship_kwargs={
+            "lazy": "selectin",
+        },
+    )
     usecase: Usecase = Relationship(back_populates="applications", sa_relationship_kwargs={"lazy": "joined"})
     application_type: "ApplicationType" = Relationship(sa_relationship_kwargs={"lazy": "joined"})
     creator: "User" = Relationship(
@@ -376,6 +408,9 @@ class Document(SQLModel, table=True):
     )
     url: str = Field(sa_column=Column(String()))
     size: int = Field(sa_column=Column(Integer, nullable=False))
+    evaluations: Dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSONB)
+    )
     # name: str = Field(max_length=255, sa_column=Column(String(255)))
     created_at: datetime = Field(
         default_factory=datetime.now, sa_column=Column(TIMESTAMP(timezone=True))

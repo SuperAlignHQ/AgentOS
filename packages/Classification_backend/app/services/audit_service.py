@@ -60,7 +60,7 @@ class AuditService:
             )
         except Exception as e:
             logger.error(f"Error in get_audit_logs: {str(e)}", exc_info=True)
-            raise DatabaseException(f"Failed to retrieve audit logs: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
 
     async def create_audit_log(
         self,
@@ -77,4 +77,4 @@ class AuditService:
         except Exception as e:
             logger.error(f"Error in create_audit_log: {str(e)}", exc_info=True)
             await db.rollback()
-            raise DatabaseException(f"Failed to create audit log: {str(e)}")
+            raise DatabaseException(f"{str(e)}")
