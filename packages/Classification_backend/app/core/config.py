@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     GOOGLE_CLOUD_PROJECT: str = ""
     GOOGLE_CLOUD_LOCATION: str = ""
-    GOOGLE_APPLICATION_CREDENTIALS: str = ""
     OCR_TIMEOUT: int = 5
 
     model_config = SettingsConfigDict(env_file=".env")
