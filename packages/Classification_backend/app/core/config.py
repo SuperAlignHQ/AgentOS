@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_LOCATION: str = ""
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
     OCR_TIMEOUT: int = 5
-    POLICY_FILE_PATH: str
 
     model_config = SettingsConfigDict(env_file=".env")
 
