@@ -3,12 +3,15 @@ Main entry point for the FastAPI application.
 """
 
 from contextlib import asynccontextmanager
+import os
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config_manager import ConfigManager
 from app.core.exception_handler import AppException, Exceptionhandler
 from app.core.logging_config import logger
+from app.core.util import UPLOAD_DIR
 from app.routes.classification_router import router as classification_router
 from app.routes.config_router import router as config_router
 from app.routes.org_router import router as org_router
@@ -35,6 +38,7 @@ async def lifecycle(app: FastAPI):
         await config.shutdown()
 
 
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 app = FastAPI(lifespan=lifecycle)
 
 app.add_middleware(
@@ -55,6 +59,8 @@ def health():
     Health check endpoint
     """
     return {"status": "healthy"}
+
+app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
 
 
 api_router = APIRouter(prefix="/api/v1")

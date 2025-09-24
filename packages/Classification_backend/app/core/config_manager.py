@@ -1,4 +1,3 @@
-
 from app.core.config import Settings, get_settings
 from app.db.database import Database
 from app.services.application_service import ApplicationService

@@ -43,7 +43,7 @@ class ApplicationResponse(BaseModel):
             system_status=application.system_status,
             policy_check=application.overall_policy_check_status,
             policy_check_result=application.policy_check_result,
-            documents=[{"evaluations": document.evaluations, "url": document.url} for document in application.documents],
+            documents=[{"evaluations": document.evaluations, "url": document.url, "original_file_name": document.original_file_name} for document in application.documents],
             created_at=application.created_at,
             updated_at=application.updated_at,
             created_by=application.creator.name,

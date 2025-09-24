@@ -1,4 +1,6 @@
+from datetime import datetime
 import json
+import os
 import httpx
 from typing import List, Optional
 from uuid import UUID, uuid4
@@ -16,7 +18,7 @@ from app.core.exception_handler import (
     ValidationException,
 )
 from app.core.logging_config import logger
-from app.core.util import transform_doc_types, validate_application_type
+from app.core.util import UPLOAD_DIR, transform_doc_types, validate_application_type
 from app.db.models import ActionTypeEnum, Application, ApplicationStatus, ApplicationTypeDocumentTypeAssociation, AuditLog, Document, DocumentCheckStatus, DocumentType, FileFormat, Org, PolicyCheckStatus, SystemStatus, TargetEnum, UnderwriterStatus, Usecase, User
 from app.repositories.application_repo import ApplicationRepo
 from app.schemas.util import EmptyResponse, PaginationQuery
@@ -180,12 +182,19 @@ class ApplicationService:
 
             document_model_file_map = {}
             for file in files:
+
+                #save file to disk
+                file_disk_name = datetime.now().strftime("%Y%m%d%H%M%S") + "_" + file.filename
+                file_path = os.path.join(UPLOAD_DIR, file_disk_name)
+                with open(file_path, "wb") as f:
+                    f.write(await file.read())
+                
                 new_filename = f"{application.underwriting_application_id}_$_{file.filename}"
                 document_model = Document(
                     application_id=application.application_id,
                     format=FileFormat.get_file_format(file.filename.split(".")[-1]),
                     original_file_name=file.filename,
-                    url="",
+                    url= file_disk_name,
                     size=file.size,
                     created_by=user.user_id,
                     updated_by=user.user_id
@@ -235,6 +244,7 @@ class ApplicationService:
                     doc_model = document_model_file_map.get(res.get("matched_filename"))
                     if doc_model:
                         doc_model.document_type_id = doc_type_model.document_type_id
+
                         db.add(doc_model)
 
                     log = AuditLog(
@@ -292,7 +302,6 @@ class ApplicationService:
                         docu_model = document_model_file_map[file.get("filename")]
                         if docu_model:
                             docu_model.evaluations = file.get("evaluations")
-                            docu_model.url = "/Users/jagdeepsingh/Downloads/db_schema_core_v2.png"
                 
 
             application.overall_policy_check_status = PolicyCheckStatus.PASS if policy_check_result else PolicyCheckStatus.FAIL
